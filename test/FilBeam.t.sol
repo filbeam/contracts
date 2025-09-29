@@ -118,7 +118,6 @@ contract FilBeamTest is Test {
         assertEq(lastCDNSettlementEpoch_, 0);
         assertEq(lastCacheMissSettlementEpoch_, 0);
         assertTrue(isInitialized);
-        assertTrue(filBeam.epochReported(DATA_SET_ID_1, 1));
     }
 
     function test_ReportUsageRollupMultipleEpochs() public {
@@ -156,7 +155,7 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupRevertDuplicateEpoch() public {
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
 
-        vm.expectRevert(EpochAlreadyReported.selector);
+        vm.expectRevert(InvalidEpoch.selector);
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 2000, 1000);
     }
 
@@ -494,10 +493,6 @@ contract FilBeamTest is Test {
         assertEq(cdnBytes2, 1500);
         assertEq(cacheMissBytes2, 750);
         assertEq(maxEpoch2, 1);
-
-        assertTrue(filBeam.epochReported(DATA_SET_ID_1, 1));
-        assertTrue(filBeam.epochReported(DATA_SET_ID_1, 2));
-        assertTrue(filBeam.epochReported(DATA_SET_ID_2, 1));
     }
 
     function test_ReportUsageRollupBatchRevertArrayLengthMismatch() public {
@@ -569,7 +564,7 @@ contract FilBeamTest is Test {
         cdnBytesUsed[0] = 2000;
         cacheMissBytesUsed[0] = 1000;
 
-        vm.expectRevert(EpochAlreadyReported.selector);
+        vm.expectRevert(InvalidEpoch.selector);
         filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
 
@@ -665,10 +660,6 @@ contract FilBeamTest is Test {
         assertEq(lastCDNSettlementEpoch1, 0);
         assertEq(lastCacheMissSettlementEpoch1, 0);
         assertFalse(isInitialized1);
-
-        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 1));
-        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 2));
-        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 0));
     }
 
     function test_SettleCDNPaymentRailBatch() public {

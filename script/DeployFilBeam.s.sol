@@ -47,7 +47,8 @@ contract DeployFilBeam is Script {
 
         // Calculate USDFC per byte rates
         uint256 cdnRatePerByte = calculateUsdfcPerByte(cdnPriceUsdPerTibScaled, priceDecimals, usdfcDecimals);
-        uint256 cacheMissRatePerByte = calculateUsdfcPerByte(cacheMissPriceUsdPerTibScaled, priceDecimals, usdfcDecimals);
+        uint256 cacheMissRatePerByte =
+            calculateUsdfcPerByte(cacheMissPriceUsdPerTibScaled, priceDecimals, usdfcDecimals);
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -97,7 +98,11 @@ contract DeployFilBeam is Script {
      * @param tokenDecimals Number of decimal places in the USDFC token
      * @return USDFC per byte (scaled by USDFC token decimals)
      */
-    function calculateUsdfcPerByte(uint256 usdPerTibScaled, uint8 priceDecimals, uint8 tokenDecimals) internal pure returns (uint256) {
+    function calculateUsdfcPerByte(uint256 usdPerTibScaled, uint8 priceDecimals, uint8 tokenDecimals)
+        internal
+        pure
+        returns (uint256)
+    {
         // Convert scaled USD to USDFC (assuming 1:1 parity)
         // Account for price decimals: 1250 with 2 decimals = $12.50
         // Scale by USDFC token decimals (e.g., 6 decimals = 10^6)

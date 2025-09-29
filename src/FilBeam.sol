@@ -22,7 +22,6 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     uint256 public cacheMissRatePerByte;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
-    mapping(uint256 => mapping(uint256 => bool)) public epochReported;
 
     event UsageReported(
         uint256 indexed dataSetId, uint256 indexed epoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed
@@ -81,7 +80,6 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         internal
     {
         if (newEpoch == 0) revert InvalidEpoch();
-        if (epochReported[dataSetId][newEpoch]) revert EpochAlreadyReported();
         if (cdnBytesUsed < 0 || cacheMissBytesUsed < 0) revert InvalidUsageAmount();
 
         DataSetUsage storage usage = dataSetUsage[dataSetId];
@@ -95,8 +93,6 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         usage.cdnBytesUsed += uint256(cdnBytesUsed);
         usage.cacheMissBytesUsed += uint256(cacheMissBytesUsed);
         usage.maxReportedEpoch = newEpoch;
-
-        epochReported[dataSetId][newEpoch] = true;
 
         emit UsageReported(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
