@@ -47,6 +47,21 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
   - Mark epoch as reported
 - **Events**: Emits `UsageReported` event
 
+**Method**: `reportUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, int256[] cdnBytesUsed, int256[] cacheMissBytesUsed)`
+
+- **Access**: Contract owner only
+- **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
+- **Parameter Requirements**:
+  - All arrays must have equal length
+  - Each array element follows same validation rules as single method
+- **Batch Processing**:
+  - Processes all reports atomically (all succeed or all fail)
+  - Maintains same epoch ordering and validation rules per dataset
+  - Prevents duplicate epoch reporting within the batch
+- **Gas Efficiency**: Significantly reduces transaction costs for bulk reporting operations
+- **Events**: Emits individual `UsageReported` event for each processed report
+- **Use Case**: Ideal for rollup workers reporting multiple usage periods
+
 #### Payment Rail Settlement
 
 **Method**: `settleCDNPaymentRail(uint256 dataSetId)`
@@ -147,5 +162,5 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 #### Epoch Management
 - Strict epoch ordering enforcement
 - Prevents duplicate epoch reporting
-- Supports batched reporting of multiple epochs
+- Supports batched reporting of multiple epochs via `reportUsageRollupBatch` method for gas efficiency
 - Independent epoch tracking per dataset

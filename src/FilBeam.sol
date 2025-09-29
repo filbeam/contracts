@@ -58,6 +58,28 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         external
         onlyOwner
     {
+        _reportUsageRollup(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function reportUsageRollupBatch(
+        uint256[] calldata dataSetIds,
+        uint256[] calldata epochs,
+        int256[] calldata cdnBytesUsed,
+        int256[] calldata cacheMissBytesUsed
+    ) external onlyOwner {
+        uint256 length = dataSetIds.length;
+        if (length != epochs.length || length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
+            revert InvalidUsageAmount();
+        }
+
+        for (uint256 i = 0; i < length; i++) {
+            _reportUsageRollup(dataSetIds[i], epochs[i], cdnBytesUsed[i], cacheMissBytesUsed[i]);
+        }
+    }
+
+    function _reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
+        internal
+    {
         if (newEpoch == 0) revert InvalidEpoch();
         if (epochReported[dataSetId][newEpoch]) revert EpochAlreadyReported();
         if (cdnBytesUsed < 0 || cacheMissBytesUsed < 0) revert InvalidUsageAmount();

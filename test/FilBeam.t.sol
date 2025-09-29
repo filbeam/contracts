@@ -454,4 +454,220 @@ contract FilBeamTest is Test {
         vm.expectRevert();
         filBeam.upgradeToAndCall(address(newImplementation), "");
     }
+
+    function test_ReportUsageRollupBatch() public {
+        uint256[] memory dataSetIds = new uint256[](3);
+        uint256[] memory epochs = new uint256[](3);
+        int256[] memory cdnBytesUsed = new int256[](3);
+        int256[] memory cacheMissBytesUsed = new int256[](3);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+
+        dataSetIds[1] = DATA_SET_ID_1;
+        epochs[1] = 2;
+        cdnBytesUsed[1] = 2000;
+        cacheMissBytesUsed[1] = 1000;
+
+        dataSetIds[2] = DATA_SET_ID_2;
+        epochs[2] = 1;
+        cdnBytesUsed[2] = 1500;
+        cacheMissBytesUsed[2] = 750;
+
+        vm.expectEmit(true, true, false, true);
+        emit UsageReported(DATA_SET_ID_1, 1, 1000, 500);
+        vm.expectEmit(true, true, false, true);
+        emit UsageReported(DATA_SET_ID_1, 2, 2000, 1000);
+        vm.expectEmit(true, true, false, true);
+        emit UsageReported(DATA_SET_ID_2, 1, 1500, 750);
+
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnBytes1, 3000);
+        assertEq(cacheMissBytes1, 1500);
+        assertEq(maxEpoch1, 2);
+
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,,,) = filBeam.getDataSetUsage(DATA_SET_ID_2);
+        assertEq(cdnBytes2, 1500);
+        assertEq(cacheMissBytes2, 750);
+        assertEq(maxEpoch2, 1);
+
+        assertTrue(filBeam.epochReported(DATA_SET_ID_1, 1));
+        assertTrue(filBeam.epochReported(DATA_SET_ID_1, 2));
+        assertTrue(filBeam.epochReported(DATA_SET_ID_2, 1));
+    }
+
+    function test_ReportUsageRollupBatchRevertArrayLengthMismatch() public {
+        uint256[] memory dataSetIds = new uint256[](2);
+        uint256[] memory epochs = new uint256[](3);
+        int256[] memory cdnBytesUsed = new int256[](2);
+        int256[] memory cacheMissBytesUsed = new int256[](2);
+
+        vm.expectRevert(InvalidUsageAmount.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchRevertOnlyOwner() public {
+        uint256[] memory dataSetIds = new uint256[](1);
+        uint256[] memory epochs = new uint256[](1);
+        int256[] memory cdnBytesUsed = new int256[](1);
+        int256[] memory cacheMissBytesUsed = new int256[](1);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+
+        vm.prank(user1);
+        vm.expectRevert();
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchRevertZeroEpoch() public {
+        uint256[] memory dataSetIds = new uint256[](1);
+        uint256[] memory epochs = new uint256[](1);
+        int256[] memory cdnBytesUsed = new int256[](1);
+        int256[] memory cacheMissBytesUsed = new int256[](1);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 0;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+
+        vm.expectRevert(InvalidEpoch.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchRevertNegativeUsage() public {
+        uint256[] memory dataSetIds = new uint256[](1);
+        uint256[] memory epochs = new uint256[](1);
+        int256[] memory cdnBytesUsed = new int256[](1);
+        int256[] memory cacheMissBytesUsed = new int256[](1);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = -1000;
+        cacheMissBytesUsed[0] = 500;
+
+        vm.expectRevert(InvalidUsageAmount.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchRevertDuplicateEpoch() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+
+        uint256[] memory dataSetIds = new uint256[](1);
+        uint256[] memory epochs = new uint256[](1);
+        int256[] memory cdnBytesUsed = new int256[](1);
+        int256[] memory cacheMissBytesUsed = new int256[](1);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = 2000;
+        cacheMissBytesUsed[0] = 1000;
+
+        vm.expectRevert(EpochAlreadyReported.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchRevertInvalidEpochOrder() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 3, 1000, 500);
+
+        uint256[] memory dataSetIds = new uint256[](1);
+        uint256[] memory epochs = new uint256[](1);
+        int256[] memory cdnBytesUsed = new int256[](1);
+        int256[] memory cacheMissBytesUsed = new int256[](1);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 2;
+        cdnBytesUsed[0] = 2000;
+        cacheMissBytesUsed[0] = 1000;
+
+        vm.expectRevert(InvalidEpoch.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchEmptyArrays() public {
+        uint256[] memory dataSetIds = new uint256[](0);
+        uint256[] memory epochs = new uint256[](0);
+        int256[] memory cdnBytesUsed = new int256[](0);
+        int256[] memory cacheMissBytesUsed = new int256[](0);
+
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function test_ReportUsageRollupBatchWithSettlement() public {
+        uint256[] memory dataSetIds = new uint256[](2);
+        uint256[] memory epochs = new uint256[](2);
+        int256[] memory cdnBytesUsed = new int256[](2);
+        int256[] memory cacheMissBytesUsed = new int256[](2);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+
+        dataSetIds[1] = DATA_SET_ID_1;
+        epochs[1] = 2;
+        cdnBytesUsed[1] = 2000;
+        cacheMissBytesUsed[1] = 1000;
+
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+
+        filBeam.settleCDNPaymentRail(DATA_SET_ID_1);
+
+        assertEq(mockFWSS.getSettlementsCount(), 1);
+        (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
+        assertEq(dataSetId, DATA_SET_ID_1);
+        assertEq(cdnAmount, 300000);
+        assertEq(cacheMissAmount, 0);
+    }
+
+    function test_ReportUsageRollupBatchAtomicity() public {
+        uint256[] memory dataSetIds = new uint256[](3);
+        uint256[] memory epochs = new uint256[](3);
+        int256[] memory cdnBytesUsed = new int256[](3);
+        int256[] memory cacheMissBytesUsed = new int256[](3);
+
+        dataSetIds[0] = DATA_SET_ID_1;
+        epochs[0] = 1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+
+        dataSetIds[1] = DATA_SET_ID_1;
+        epochs[1] = 2;
+        cdnBytesUsed[1] = 2000;
+        cacheMissBytesUsed[1] = 1000;
+
+        dataSetIds[2] = DATA_SET_ID_1;
+        epochs[2] = 0;
+        cdnBytesUsed[2] = 1500;
+        cacheMissBytesUsed[2] = 750;
+
+        vm.expectRevert(InvalidEpoch.selector);
+        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
+
+        (
+            uint256 cdnBytesUsed1,
+            uint256 cacheMissBytesUsed1,
+            uint256 maxReportedEpoch1,
+            uint256 lastCDNSettlementEpoch1,
+            uint256 lastCacheMissSettlementEpoch1,
+            bool isInitialized1
+        ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+
+        assertEq(cdnBytesUsed1, 0);
+        assertEq(cacheMissBytesUsed1, 0);
+        assertEq(maxReportedEpoch1, 0);
+        assertEq(lastCDNSettlementEpoch1, 0);
+        assertEq(lastCacheMissSettlementEpoch1, 0);
+        assertFalse(isInitialized1);
+
+        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 1));
+        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 2));
+        assertFalse(filBeam.epochReported(DATA_SET_ID_1, 0));
+    }
 }
