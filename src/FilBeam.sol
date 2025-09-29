@@ -1,0 +1,148 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+
+import "./interfaces/IFWSS.sol";
+import "./Errors.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+
+contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+    struct DataSetUsage {
+        uint256 cdnBytesUsed;
+        uint256 cacheMissBytesUsed;
+        uint256 maxReportedEpoch;
+        uint256 lastCDNSettlementEpoch;
+        uint256 lastCacheMissSettlementEpoch;
+        bool isInitialized;
+    }
+
+    IFWSS public fwss;
+    uint256 public cdnRatePerByte;
+    uint256 public cacheMissRatePerByte;
+
+    mapping(uint256 => DataSetUsage) public dataSetUsage;
+    mapping(uint256 => mapping(uint256 => bool)) public epochReported;
+
+    event UsageReported(
+        uint256 indexed dataSetId, uint256 indexed epoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed
+    );
+
+    event CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount);
+
+    event CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount);
+
+    event PaymentRailsTerminated(uint256 indexed dataSetId);
+
+    function initialize(
+        address fwssAddress,
+        uint256 _cdnRatePerByte,
+        uint256 _cacheMissRatePerByte,
+        address initialOwner
+    ) public initializer {
+        if (fwssAddress == address(0)) revert InvalidUsageAmount();
+        if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
+        if (initialOwner == address(0)) revert InvalidUsageAmount();
+
+        __Ownable_init(initialOwner);
+        __UUPSUpgradeable_init();
+
+        fwss = IFWSS(fwssAddress);
+        cdnRatePerByte = _cdnRatePerByte;
+        cacheMissRatePerByte = _cacheMissRatePerByte;
+    }
+
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
+        external
+        onlyOwner
+    {
+        if (newEpoch == 0) revert InvalidEpoch();
+        if (epochReported[dataSetId][newEpoch]) revert EpochAlreadyReported();
+        if (cdnBytesUsed < 0 || cacheMissBytesUsed < 0) revert InvalidUsageAmount();
+
+        DataSetUsage storage usage = dataSetUsage[dataSetId];
+
+        if (!usage.isInitialized) {
+            usage.isInitialized = true;
+        }
+
+        if (newEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
+
+        usage.cdnBytesUsed += uint256(cdnBytesUsed);
+        usage.cacheMissBytesUsed += uint256(cacheMissBytesUsed);
+        usage.maxReportedEpoch = newEpoch;
+
+        epochReported[dataSetId][newEpoch] = true;
+
+        emit UsageReported(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
+    }
+
+    function settleCDNPaymentRail(uint256 dataSetId) external {
+        DataSetUsage storage usage = dataSetUsage[dataSetId];
+
+        if (!usage.isInitialized) revert DataSetNotInitialized();
+        if (usage.maxReportedEpoch <= usage.lastCDNSettlementEpoch) revert NoUsageToSettle();
+
+        uint256 fromEpoch = usage.lastCDNSettlementEpoch + 1;
+        uint256 toEpoch = usage.maxReportedEpoch;
+        uint256 cdnAmount = usage.cdnBytesUsed * cdnRatePerByte;
+
+        usage.lastCDNSettlementEpoch = toEpoch;
+        usage.cdnBytesUsed = 0;
+
+        fwss.settleCDNPaymentRails(dataSetId, cdnAmount, 0);
+
+        emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
+    }
+
+    function settleCacheMissPaymentRail(uint256 dataSetId) external {
+        DataSetUsage storage usage = dataSetUsage[dataSetId];
+
+        if (!usage.isInitialized) revert DataSetNotInitialized();
+        if (usage.maxReportedEpoch <= usage.lastCacheMissSettlementEpoch) revert NoUsageToSettle();
+
+        uint256 fromEpoch = usage.lastCacheMissSettlementEpoch + 1;
+        uint256 toEpoch = usage.maxReportedEpoch;
+        uint256 cacheMissAmount = usage.cacheMissBytesUsed * cacheMissRatePerByte;
+
+        usage.lastCacheMissSettlementEpoch = toEpoch;
+        usage.cacheMissBytesUsed = 0;
+
+        fwss.settleCDNPaymentRails(dataSetId, 0, cacheMissAmount);
+
+        emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
+    }
+
+    function terminateCDNPaymentRails(uint256 dataSetId) external onlyOwner {
+        if (!dataSetUsage[dataSetId].isInitialized) revert DataSetNotInitialized();
+
+        fwss.terminateCDNPaymentRails(dataSetId);
+
+        emit PaymentRailsTerminated(dataSetId);
+    }
+
+    function getDataSetUsage(uint256 dataSetId)
+        external
+        view
+        returns (
+            uint256 cdnBytesUsed,
+            uint256 cacheMissBytesUsed,
+            uint256 maxReportedEpoch,
+            uint256 lastCDNSettlementEpoch_,
+            uint256 lastCacheMissSettlementEpoch_,
+            bool isInitialized
+        )
+    {
+        DataSetUsage storage usage = dataSetUsage[dataSetId];
+        return (
+            usage.cdnBytesUsed,
+            usage.cacheMissBytesUsed,
+            usage.maxReportedEpoch,
+            usage.lastCDNSettlementEpoch,
+            usage.lastCacheMissSettlementEpoch,
+            usage.isInitialized
+        );
+    }
+}
