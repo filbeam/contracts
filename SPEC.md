@@ -77,6 +77,18 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - **Events**: Emits `CDNSettlement` event
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
+**Method**: `settleCDNPaymentRailBatch(uint256[] dataSetIds)`
+
+- **Access**: Publicly callable (anyone can trigger settlement)
+- **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
+- **Batch Processing**:
+  - Processes all settlements atomically (all succeed or all fail)
+  - Each dataset follows same validation and settlement logic as single method
+  - Maintains independent operation per dataset
+- **Gas Efficiency**: Significantly reduces transaction costs for bulk settlement operations
+- **Events**: Emits individual `CDNSettlement` event for each processed dataset
+- **Use Case**: Ideal for batch settlement operations across multiple datasets
+
 **Method**: `settleCacheMissPaymentRail(uint256 dataSetId)`
 
 - **Access**: Publicly callable (typically called by Storage Providers)
@@ -89,6 +101,18 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - **Requirements**: Dataset must be initialized and have unreported usage
 - **Events**: Emits `CacheMissSettlement` event
 - **Independent Operation**: Can be called independently of CDN settlement
+
+**Method**: `settleCacheMissPaymentRailBatch(uint256[] dataSetIds)`
+
+- **Access**: Publicly callable (typically called by Storage Providers)
+- **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
+- **Batch Processing**:
+  - Processes all settlements atomically (all succeed or all fail)
+  - Each dataset follows same validation and settlement logic as single method
+  - Maintains independent operation per dataset
+- **Gas Efficiency**: Significantly reduces transaction costs for bulk settlement operations
+- **Events**: Emits individual `CacheMissSettlement` event for each processed dataset
+- **Use Case**: Ideal for Storage Providers performing bulk settlement operations
 
 #### Payment Rail Termination
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`

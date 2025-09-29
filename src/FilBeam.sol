@@ -102,6 +102,16 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     function settleCDNPaymentRail(uint256 dataSetId) external {
+        _settleCDNPaymentRail(dataSetId);
+    }
+
+    function settleCDNPaymentRailBatch(uint256[] calldata dataSetIds) external {
+        for (uint256 i = 0; i < dataSetIds.length; i++) {
+            _settleCDNPaymentRail(dataSetIds[i]);
+        }
+    }
+
+    function _settleCDNPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
         if (!usage.isInitialized) revert DataSetNotInitialized();
@@ -120,6 +130,16 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     }
 
     function settleCacheMissPaymentRail(uint256 dataSetId) external {
+        _settleCacheMissPaymentRail(dataSetId);
+    }
+
+    function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external {
+        for (uint256 i = 0; i < dataSetIds.length; i++) {
+            _settleCacheMissPaymentRail(dataSetIds[i]);
+        }
+    }
+
+    function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
         if (!usage.isInitialized) revert DataSetNotInitialized();

@@ -670,4 +670,160 @@ contract FilBeamTest is Test {
         assertFalse(filBeam.epochReported(DATA_SET_ID_1, 2));
         assertFalse(filBeam.epochReported(DATA_SET_ID_1, 0));
     }
+
+    function test_SettleCDNPaymentRailBatch() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 2, 2000, 1000);
+        filBeam.reportUsageRollup(DATA_SET_ID_2, 1, 1500, 750);
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        dataSetIds[1] = DATA_SET_ID_2;
+
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_1, 1, 2, 300000);
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_2, 1, 1, 150000);
+
+        vm.prank(user1);
+        filBeam.settleCDNPaymentRailBatch(dataSetIds);
+
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,,) =
+            filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnBytes1, 0);
+        assertEq(cacheMissBytes1, 1500);
+        assertEq(maxEpoch1, 2);
+        assertEq(lastCDNEpoch1, 2);
+
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2, uint256 lastCDNEpoch2,,) =
+            filBeam.getDataSetUsage(DATA_SET_ID_2);
+        assertEq(cdnBytes2, 0);
+        assertEq(cacheMissBytes2, 750);
+        assertEq(maxEpoch2, 1);
+        assertEq(lastCDNEpoch2, 1);
+
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
+        assertEq(dataSetId1, DATA_SET_ID_1);
+        assertEq(cdnAmount1, 300000);
+        assertEq(cacheMissAmount1, 0);
+
+        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
+        assertEq(dataSetId2, DATA_SET_ID_2);
+        assertEq(cdnAmount2, 150000);
+        assertEq(cacheMissAmount2, 0);
+    }
+
+    function test_SettleCacheMissPaymentRailBatch() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 2, 2000, 1000);
+        filBeam.reportUsageRollup(DATA_SET_ID_2, 1, 1500, 750);
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        dataSetIds[1] = DATA_SET_ID_2;
+
+        vm.expectEmit(true, false, false, true);
+        emit CacheMissSettlement(DATA_SET_ID_1, 1, 2, 300000);
+        vm.expectEmit(true, false, false, true);
+        emit CacheMissSettlement(DATA_SET_ID_2, 1, 1, 150000);
+
+        vm.prank(user1);
+        filBeam.settleCacheMissPaymentRailBatch(dataSetIds);
+
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,, uint256 lastCacheMissEpoch1,) =
+            filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnBytes1, 3000);
+        assertEq(cacheMissBytes1, 0);
+        assertEq(maxEpoch1, 2);
+        assertEq(lastCacheMissEpoch1, 2);
+
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,, uint256 lastCacheMissEpoch2,) =
+            filBeam.getDataSetUsage(DATA_SET_ID_2);
+        assertEq(cdnBytes2, 1500);
+        assertEq(cacheMissBytes2, 0);
+        assertEq(maxEpoch2, 1);
+        assertEq(lastCacheMissEpoch2, 1);
+
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
+        assertEq(dataSetId1, DATA_SET_ID_1);
+        assertEq(cdnAmount1, 0);
+        assertEq(cacheMissAmount1, 300000);
+
+        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
+        assertEq(dataSetId2, DATA_SET_ID_2);
+        assertEq(cdnAmount2, 0);
+        assertEq(cacheMissAmount2, 150000);
+    }
+
+    function test_SettleCDNPaymentRailBatchEmptyArray() public {
+        uint256[] memory dataSetIds = new uint256[](0);
+        filBeam.settleCDNPaymentRailBatch(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+    }
+
+    function test_SettleCacheMissPaymentRailBatchEmptyArray() public {
+        uint256[] memory dataSetIds = new uint256[](0);
+        filBeam.settleCacheMissPaymentRailBatch(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+    }
+
+    function test_SettleCDNPaymentRailBatchRevertDataSetNotInitialized() public {
+        uint256[] memory dataSetIds = new uint256[](1);
+        dataSetIds[0] = DATA_SET_ID_1;
+
+        vm.expectRevert(DataSetNotInitialized.selector);
+        filBeam.settleCDNPaymentRailBatch(dataSetIds);
+    }
+
+    function test_SettleCacheMissPaymentRailBatchRevertDataSetNotInitialized() public {
+        uint256[] memory dataSetIds = new uint256[](1);
+        dataSetIds[0] = DATA_SET_ID_1;
+
+        vm.expectRevert(DataSetNotInitialized.selector);
+        filBeam.settleCacheMissPaymentRailBatch(dataSetIds);
+    }
+
+    function test_SettleCDNPaymentRailBatchRevertNoUsageToSettle() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+        filBeam.settleCDNPaymentRail(DATA_SET_ID_1);
+
+        uint256[] memory dataSetIds = new uint256[](1);
+        dataSetIds[0] = DATA_SET_ID_1;
+
+        vm.expectRevert(NoUsageToSettle.selector);
+        filBeam.settleCDNPaymentRailBatch(dataSetIds);
+    }
+
+    function test_SettleCacheMissPaymentRailBatchRevertNoUsageToSettle() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+        filBeam.settleCacheMissPaymentRail(DATA_SET_ID_1);
+
+        uint256[] memory dataSetIds = new uint256[](1);
+        dataSetIds[0] = DATA_SET_ID_1;
+
+        vm.expectRevert(NoUsageToSettle.selector);
+        filBeam.settleCacheMissPaymentRailBatch(dataSetIds);
+    }
+
+    function test_SettlementBatchAtomicity() public {
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        dataSetIds[1] = DATA_SET_ID_2;
+
+        vm.expectRevert(DataSetNotInitialized.selector);
+        filBeam.settleCDNPaymentRailBatch(dataSetIds);
+
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,,) =
+            filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnBytes1, 1000);
+        assertEq(cacheMissBytes1, 500);
+        assertEq(maxEpoch1, 1);
+        assertEq(lastCDNEpoch1, 0);
+
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+    }
 }
