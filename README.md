@@ -1,17 +1,18 @@
-## Foundry
+# FilBeam Contract
+
+FilBeam is an upgradeable smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and flexible decimal pricing support.
+
+## Features
+
+- **Usage Reporting**: Single and batch methods for reporting CDN and cache-miss usage
+- **Rail Settlements**: Independent settlement for CDN and cache-miss payment rails
+- **Upgradeable**: UUPS proxy pattern for contract upgrades
+
+## Built with Foundry
 
 **Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-Foundry consists of:
-
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+Documentation: https://book.getfoundry.sh/
 
 ## Usage
 
@@ -45,11 +46,178 @@ $ forge snapshot
 $ anvil
 ```
 
-### Deploy
+### Deploy FilBeam Contract
 
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+The FilBeam contract can be deployed using the provided deployment script with flexible pricing configuration.
+
+#### Environment Variables
+
+Set the following environment variables before deployment:
+
+```bash
+export PRIVATE_KEY="0x1234..."                    # Deployer's private key
+export FWSS_ADDRESS="0xabc..."                    # FWSS contract address
+export USDFC_ADDRESS="0xdef..."                   # USDFC token contract address
+export CDN_PRICE_USD_PER_TIB="1250"              # CDN price (scaled by PRICE_DECIMALS)
+export CACHE_MISS_PRICE_USD_PER_TIB="1575"       # Cache miss price (scaled by PRICE_DECIMALS)
+export PRICE_DECIMALS="2"                        # Number of decimal places (2 = cents precision)
 ```
+
+#### Deployment Examples
+
+**Example 1: Decimal Pricing ($12.50 CDN, $15.75 Cache Miss)**
+```bash
+PRIVATE_KEY=0x1234... \
+FWSS_ADDRESS=0xabc... \
+USDFC_ADDRESS=0xdef... \
+CDN_PRICE_USD_PER_TIB=1250 \
+CACHE_MISS_PRICE_USD_PER_TIB=1575 \
+PRICE_DECIMALS=2 \
+forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
+```
+
+**Example 2: Whole Dollar Pricing ($10 CDN, $15 Cache Miss)**
+```bash
+PRIVATE_KEY=0x1234... \
+FWSS_ADDRESS=0xabc... \
+USDFC_ADDRESS=0xdef... \
+CDN_PRICE_USD_PER_TIB=10 \
+CACHE_MISS_PRICE_USD_PER_TIB=15 \
+PRICE_DECIMALS=0 \
+forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
+```
+
+**Example 3: High Precision Pricing ($9.995 CDN, $12.750 Cache Miss)**
+```bash
+PRIVATE_KEY=0x1234... \
+FWSS_ADDRESS=0xabc... \
+USDFC_ADDRESS=0xdef... \
+CDN_PRICE_USD_PER_TIB=9995 \
+CACHE_MISS_PRICE_USD_PER_TIB=12750 \
+PRICE_DECIMALS=3 \
+forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
+```
+
+#### Pricing Configuration Guide
+
+| Desired Price | CDN_PRICE_USD_PER_TIB | PRICE_DECIMALS | Result |
+|---------------|----------------------|----------------|---------|
+| $10.00/TiB    | 10                   | 0              | $10.00  |
+| $12.50/TiB    | 1250                 | 2              | $12.50  |
+| $9.99/TiB     | 999                  | 2              | $9.99   |
+| $15.750/TiB   | 15750                | 3              | $15.750 |
+| $7.5/TiB      | 75                   | 1              | $7.5    |
+
+#### Deployment Output
+
+The deployment script provides detailed information about the deployed contracts:
+
+```
+=== FilBeam Deployment Complete ===
+Implementation deployed at: 0x123...
+Proxy deployed at: 0x456...
+FilBeam contract available at: 0x456...
+
+=== Configuration ===
+FWSS Address: 0xabc...
+USDFC Address: 0xdef...
+USDFC Decimals: 6
+Price Decimals: 2
+Owner: 0x789...
+
+=== Pricing ===
+CDN Price (scaled input): 1250
+CDN Rate (USDFC per byte): 11368
+Cache Miss Price (scaled input): 1575
+Cache Miss Rate (USDFC per byte): 14324
+
+=== Actual USD Prices ===
+CDN: scaled 1250 with 2 decimals
+Cache Miss: scaled 1575 with 2 decimals
+```
+
+## Contract API
+
+### Usage Reporting
+
+**Single Report**
+```solidity
+function reportUsageRollup(
+    uint256 dataSetId,
+    uint256 newEpoch,
+    int256 cdnBytesUsed,
+    int256 cacheMissBytesUsed
+) external onlyOwner
+```
+
+**Batch Reports**
+```solidity
+function reportUsageRollupBatch(
+    uint256[] calldata dataSetIds,
+    uint256[] calldata epochs,
+    int256[] calldata cdnBytesUsed,
+    int256[] calldata cacheMissBytesUsed
+) external onlyOwner
+```
+
+### Settlement Operations
+
+**Single Settlement**
+```solidity
+function settleCDNPaymentRail(uint256 dataSetId) external
+function settleCacheMissPaymentRail(uint256 dataSetId) external
+```
+
+**Batch Settlement**
+```solidity
+function settleCDNPaymentRailBatch(uint256[] calldata dataSetIds) external
+function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external
+```
+
+### Data Set Management
+
+**Payment Rail Termination**
+```solidity
+function terminateCDNPaymentRails(uint256 dataSetId) external onlyOwner
+```
+
+### Contract Management
+
+**Ownership & Upgrades**
+```solidity
+function transferOwnership(address newOwner) external onlyOwner
+function upgradeToAndCall(address newImplementation, bytes memory data) external onlyOwner
+```
+### View Functions
+
+**Dataset Information**
+```solidity
+function getDataSetUsage(uint256 dataSetId) external view returns (
+    uint256 cdnBytesUsed,
+    uint256 cacheMissBytesUsed,
+    uint256 maxReportedEpoch,
+    uint256 lastCDNSettlementEpoch,
+    uint256 lastCacheMissSettlementEpoch,
+    bool isInitialized
+)
+```
+
+## Key Concepts
+
+### Batch Operations
+- **Gas Efficient**: Reduce transaction costs for bulk operations
+- **Atomic**: All operations in a batch succeed or all fail
+- **Independent Rails**: CDN and cache-miss settlements operate independently
+
+### Pricing Model
+- **Rate-Based**: Usage calculated as `bytes * rate_per_byte`
+- **Decimal Support**: Flexible pricing with configurable decimal precision
+- **Token Agnostic**: Works with any ERC20 token (USDFC assumed)
+
+### Rail Settlement 
+- **Independent Tracking**: CDN and cache-miss settlements tracked separately
+- **Epoch-Based**: Settlement periods defined by epoch ranges
+- **Accumulative**: Usage accumulates between settlements
 
 ### Cast
 
