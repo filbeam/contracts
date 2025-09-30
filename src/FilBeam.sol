@@ -20,6 +20,7 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     IFWSS public fwss;
     uint256 public cdnRatePerByte;
     uint256 public cacheMissRatePerByte;
+    address public filBeamController;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
 
@@ -37,11 +38,13 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         address fwssAddress,
         uint256 _cdnRatePerByte,
         uint256 _cacheMissRatePerByte,
-        address initialOwner
+        address initialOwner,
+        address _filBeamController
     ) public initializer {
         if (fwssAddress == address(0)) revert InvalidUsageAmount();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (initialOwner == address(0)) revert InvalidUsageAmount();
+        if (_filBeamController == address(0)) revert InvalidUsageAmount();
 
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
@@ -49,13 +52,19 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         fwss = IFWSS(fwssAddress);
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
+        filBeamController = _filBeamController;
+    }
+
+    modifier onlyFilBeamController() {
+        if (msg.sender != filBeamController) revert Unauthorized();
+        _;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
         external
-        onlyOwner
+        onlyFilBeamController
     {
         _reportUsageRollup(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
@@ -65,7 +74,7 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         uint256[] calldata epochs,
         int256[] calldata cdnBytesUsed,
         int256[] calldata cacheMissBytesUsed
-    ) external onlyOwner {
+    ) external onlyFilBeamController {
         uint256 length = dataSetIds.length;
         if (length != epochs.length || length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
             revert InvalidUsageAmount();
@@ -153,7 +162,7 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
 
-    function terminateCDNPaymentRails(uint256 dataSetId) external onlyOwner {
+    function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController {
         if (!dataSetUsage[dataSetId].isInitialized) revert DataSetNotInitialized();
 
         fwss.terminateCDNPaymentRails(dataSetId);

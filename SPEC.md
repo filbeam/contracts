@@ -6,18 +6,21 @@
 
 The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit) and cache-miss data set egress usage data reported by the off-chain rollup worker and settlement of payment rails. Payment rails are managed by the Filecoin Warm Storage Service (FWSS) contract. The FilBeam contract interacts with the FWSS contract to facilitate fund transfers based on reported usage data with rate-based billing.
 
-#### Constructor
-**Method**: `constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte)`
+#### Initialization
+**Method**: `initialize(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address initialOwner, address _filBeamController)`
 
 **Parameters**:
 - `address fwssAddress`: Address of the FWSS contract
 - `uint256 _cdnRatePerByte`: Rate per byte for CDN usage billing (must be > 0)
 - `uint256 _cacheMissRatePerByte`: Rate per byte for cache-miss usage billing (must be > 0)
+- `address initialOwner`: Initial owner address for contract upgrades
+- `address _filBeamController`: Address authorized to report usage and terminate payment rails
 
 **Validations**:
 - FWSS address cannot be zero address
 - Both rates must be greater than zero
-- Sets deployer as contract owner
+- Initial owner cannot be zero address
+- FilBeam controller cannot be zero address
 
 #### Data Structure
 **DataSetUsage Struct**:
@@ -31,7 +34,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 #### Usage Reporting
 **Method**: `reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)`
 
-- **Access**: Contract owner only
+- **Access**: FilBeam controller only
 - **Purpose**: Accepts periodic usage reports from the rollup worker
 - **Epoch Requirements**:
   - Epoch must be > 0
@@ -49,7 +52,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 
 **Method**: `reportUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, int256[] cdnBytesUsed, int256[] cacheMissBytesUsed)`
 
-- **Access**: Contract owner only
+- **Access**: FilBeam controller only
 - **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
 - **Parameter Requirements**:
   - All arrays must have equal length
@@ -117,7 +120,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 #### Payment Rail Termination
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
 
-- **Access**: Contract owner only
+- **Access**: FilBeam controller only
 - **Requirements**: Dataset must be initialized
 - **Process**: Forward termination call to FWSS contract
 - **Events**: Emits `PaymentRailsTerminated` event
@@ -146,10 +149,14 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
 
+#### Access Control
+- **Owner**: Address authorized to upgrade the contract implementation
+- **FilBeam Controller**: Address authorized to report usage and terminate payment rails
+
 #### Error Conditions
-- `OnlyOwner()`: Caller is not the contract owner
+- `OnlyOwner()`: Caller is not the contract owner (for upgrades)
+- `Unauthorized()`: Caller is not the FilBeam controller
 - `InvalidEpoch()`: Invalid epoch number or ordering
-- `EpochAlreadyReported()`: Attempt to report same epoch twice
 - `NoUsageToSettle()`: No unreported usage available for settlement
 - `InvalidUsageAmount()`: Invalid usage amount (negative values or zero address)
 - `DataSetNotInitialized()`: Dataset has not been initialized

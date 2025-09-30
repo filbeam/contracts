@@ -57,7 +57,7 @@ contract DeployFilBeam is Script {
 
         // Encode the initialize call
         bytes memory initData =
-            abi.encodeCall(FilBeam.initialize, (fwssAddress, cdnRatePerByte, cacheMissRatePerByte, deployer));
+            abi.encodeCall(FilBeam.initialize, (fwssAddress, cdnRatePerByte, cacheMissRatePerByte, deployer, deployer));
 
         // Deploy the proxy
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
