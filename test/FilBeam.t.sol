@@ -20,7 +20,7 @@ contract FilBeamTest is Test {
     uint256 constant CACHE_MISS_RATE_PER_BYTE = 200;
 
     event UsageReported(
-        uint256 indexed dataSetId, uint256 indexed epoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed
+        uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed
     );
 
     event CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount);
@@ -30,6 +30,10 @@ contract FilBeamTest is Test {
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
+
+    event CDNRateUpdated(uint256 oldRate, uint256 newRate);
+
+    event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
 
     function setUp() public {
         owner = address(this);
@@ -83,8 +87,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
-            uint256 lastCacheMissSettlementEpoch_,
-            bool isInitialized
+            uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
         assertEq(cdnBytesUsed, 1000);
@@ -92,7 +95,6 @@ contract FilBeamTest is Test {
         assertEq(maxReportedEpoch, 1);
         assertEq(lastCDNSettlementEpoch_, 0);
         assertEq(lastCacheMissSettlementEpoch_, 0);
-        assertTrue(isInitialized);
     }
 
     function test_ReportUsageRollupMultipleEpochs() public {
@@ -102,7 +104,7 @@ contract FilBeamTest is Test {
         filBeam.reportUsageRollup(DATA_SET_ID_1, 3, 1500, 750);
         vm.stopPrank();
 
-        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,,) =
+        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
 
         assertEq(cdnBytesUsed, 4500);
@@ -120,16 +122,6 @@ contract FilBeamTest is Test {
         vm.prank(filBeamController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.reportUsageRollup(DATA_SET_ID_1, 0, 1000, 500);
-    }
-
-    function test_ReportUsageRollupRevertNegativeUsage() public {
-        vm.prank(filBeamController);
-        vm.expectRevert(InvalidUsageAmount.selector);
-        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, -1000, 500);
-
-        vm.prank(filBeamController);
-        vm.expectRevert(InvalidUsageAmount.selector);
-        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, -500);
     }
 
     function test_ReportUsageRollupRevertDuplicateEpoch() public {
@@ -167,8 +159,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
-            uint256 lastCacheMissSettlementEpoch_,
-            bool isInitialized
+            uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
         assertEq(cdnBytesUsed, 0);
@@ -176,7 +167,6 @@ contract FilBeamTest is Test {
         assertEq(maxReportedEpoch, 2);
         assertEq(lastCDNSettlementEpoch_, 2);
         assertEq(lastCacheMissSettlementEpoch_, 0);
-        assertTrue(isInitialized);
 
         assertEq(mockFWSS.getSettlementsCount(), 1);
         (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
@@ -202,8 +192,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
-            uint256 lastCacheMissSettlementEpoch_,
-            bool isInitialized
+            uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
         assertEq(cdnBytesUsed, 3000);
@@ -211,7 +200,6 @@ contract FilBeamTest is Test {
         assertEq(maxReportedEpoch, 2);
         assertEq(lastCDNSettlementEpoch_, 0);
         assertEq(lastCacheMissSettlementEpoch_, 2);
-        assertTrue(isInitialized);
 
         assertEq(mockFWSS.getSettlementsCount(), 1);
         (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
@@ -325,7 +313,7 @@ contract FilBeamTest is Test {
 
         assertEq(mockFWSS.getSettlementsCount(), 2);
 
-        (,, uint256 maxReportedEpoch, uint256 lastCDNSettlementEpoch_, uint256 lastCacheMissSettlementEpoch_,) =
+        (,, uint256 maxReportedEpoch, uint256 lastCDNSettlementEpoch_, uint256 lastCacheMissSettlementEpoch_) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(maxReportedEpoch, 3);
         assertEq(lastCDNSettlementEpoch_, 2);
@@ -341,9 +329,9 @@ contract FilBeamTest is Test {
         vm.assume(cacheMissBytes < type(uint256).max / 2);
 
         vm.prank(filBeamController);
-        filBeam.reportUsageRollup(dataSetId, epoch, int256(cdnBytes), int256(cacheMissBytes));
+        filBeam.reportUsageRollup(dataSetId, epoch, cdnBytes, cacheMissBytes);
 
-        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,,) =
+        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,) =
             filBeam.getDataSetUsage(dataSetId);
 
         assertEq(cdnBytesUsed, cdnBytes);
@@ -354,13 +342,18 @@ contract FilBeamTest is Test {
     function test_ZeroUsageReporting() public {
         vm.prank(filBeamController);
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 0, 0);
+
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_1, 1, 1, 0);
+
         filBeam.settleCDNPaymentRail(DATA_SET_ID_1);
 
-        assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId, DATA_SET_ID_1);
-        assertEq(cdnAmount, 0);
-        assertEq(cacheMissAmount, 0);
+        // No external call should be made when amount is 0
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+
+        // Settlement state should still be updated
+        (,,, uint256 lastCDNSettlement,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(lastCDNSettlement, 1);
     }
 
     function test_IndependentSettlement() public {
@@ -377,7 +370,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed1,
             uint256 maxReportedEpoch1,
             uint256 lastCDNSettlementEpoch1,
-            uint256 lastCacheMissSettlementEpoch1,
+            uint256 lastCacheMissSettlementEpoch1
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cacheMissBytesUsed1, 2250);
         assertEq(maxReportedEpoch1, 3);
@@ -394,7 +387,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed2,
             uint256 maxReportedEpoch2,
             uint256 lastCDNSettlementEpoch2,
-            uint256 lastCacheMissSettlementEpoch2,
+            uint256 lastCacheMissSettlementEpoch2
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytesUsed2, 800);
         assertEq(cacheMissBytesUsed2, 0);
@@ -433,8 +426,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatch() public {
         uint256[] memory dataSetIds = new uint256[](3);
         uint256[] memory epochs = new uint256[](3);
-        int256[] memory cdnBytesUsed = new int256[](3);
-        int256[] memory cacheMissBytesUsed = new int256[](3);
+        uint256[] memory cdnBytesUsed = new uint256[](3);
+        uint256[] memory cacheMissBytesUsed = new uint256[](3);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 1;
@@ -461,12 +454,12 @@ contract FilBeamTest is Test {
         vm.prank(filBeamController);
         filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytes1, 3000);
         assertEq(cacheMissBytes1, 1500);
         assertEq(maxEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,,,) = filBeam.getDataSetUsage(DATA_SET_ID_2);
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,,) = filBeam.getDataSetUsage(DATA_SET_ID_2);
         assertEq(cdnBytes2, 1500);
         assertEq(cacheMissBytes2, 750);
         assertEq(maxEpoch2, 1);
@@ -475,8 +468,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchRevertArrayLengthMismatch() public {
         uint256[] memory dataSetIds = new uint256[](2);
         uint256[] memory epochs = new uint256[](3);
-        int256[] memory cdnBytesUsed = new int256[](2);
-        int256[] memory cacheMissBytesUsed = new int256[](2);
+        uint256[] memory cdnBytesUsed = new uint256[](2);
+        uint256[] memory cacheMissBytesUsed = new uint256[](2);
 
         vm.prank(filBeamController);
         vm.expectRevert(InvalidUsageAmount.selector);
@@ -486,8 +479,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchRevertUnauthorized() public {
         uint256[] memory dataSetIds = new uint256[](1);
         uint256[] memory epochs = new uint256[](1);
-        int256[] memory cdnBytesUsed = new int256[](1);
-        int256[] memory cacheMissBytesUsed = new int256[](1);
+        uint256[] memory cdnBytesUsed = new uint256[](1);
+        uint256[] memory cacheMissBytesUsed = new uint256[](1);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 1;
@@ -502,8 +495,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchRevertZeroEpoch() public {
         uint256[] memory dataSetIds = new uint256[](1);
         uint256[] memory epochs = new uint256[](1);
-        int256[] memory cdnBytesUsed = new int256[](1);
-        int256[] memory cacheMissBytesUsed = new int256[](1);
+        uint256[] memory cdnBytesUsed = new uint256[](1);
+        uint256[] memory cacheMissBytesUsed = new uint256[](1);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 0;
@@ -515,30 +508,14 @@ contract FilBeamTest is Test {
         filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
 
-    function test_ReportUsageRollupBatchRevertNegativeUsage() public {
-        uint256[] memory dataSetIds = new uint256[](1);
-        uint256[] memory epochs = new uint256[](1);
-        int256[] memory cdnBytesUsed = new int256[](1);
-        int256[] memory cacheMissBytesUsed = new int256[](1);
-
-        dataSetIds[0] = DATA_SET_ID_1;
-        epochs[0] = 1;
-        cdnBytesUsed[0] = -1000;
-        cacheMissBytesUsed[0] = 500;
-
-        vm.prank(filBeamController);
-        vm.expectRevert(InvalidUsageAmount.selector);
-        filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
-    }
-
     function test_ReportUsageRollupBatchRevertDuplicateEpoch() public {
         vm.prank(filBeamController);
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
 
         uint256[] memory dataSetIds = new uint256[](1);
         uint256[] memory epochs = new uint256[](1);
-        int256[] memory cdnBytesUsed = new int256[](1);
-        int256[] memory cacheMissBytesUsed = new int256[](1);
+        uint256[] memory cdnBytesUsed = new uint256[](1);
+        uint256[] memory cacheMissBytesUsed = new uint256[](1);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 1;
@@ -556,8 +533,8 @@ contract FilBeamTest is Test {
 
         uint256[] memory dataSetIds = new uint256[](1);
         uint256[] memory epochs = new uint256[](1);
-        int256[] memory cdnBytesUsed = new int256[](1);
-        int256[] memory cacheMissBytesUsed = new int256[](1);
+        uint256[] memory cdnBytesUsed = new uint256[](1);
+        uint256[] memory cacheMissBytesUsed = new uint256[](1);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 2;
@@ -572,8 +549,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchEmptyArrays() public {
         uint256[] memory dataSetIds = new uint256[](0);
         uint256[] memory epochs = new uint256[](0);
-        int256[] memory cdnBytesUsed = new int256[](0);
-        int256[] memory cacheMissBytesUsed = new int256[](0);
+        uint256[] memory cdnBytesUsed = new uint256[](0);
+        uint256[] memory cacheMissBytesUsed = new uint256[](0);
 
         vm.prank(filBeamController);
         filBeam.reportUsageRollupBatch(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
@@ -582,8 +559,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchWithSettlement() public {
         uint256[] memory dataSetIds = new uint256[](2);
         uint256[] memory epochs = new uint256[](2);
-        int256[] memory cdnBytesUsed = new int256[](2);
-        int256[] memory cacheMissBytesUsed = new int256[](2);
+        uint256[] memory cdnBytesUsed = new uint256[](2);
+        uint256[] memory cacheMissBytesUsed = new uint256[](2);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 1;
@@ -610,8 +587,8 @@ contract FilBeamTest is Test {
     function test_ReportUsageRollupBatchAtomicity() public {
         uint256[] memory dataSetIds = new uint256[](3);
         uint256[] memory epochs = new uint256[](3);
-        int256[] memory cdnBytesUsed = new int256[](3);
-        int256[] memory cacheMissBytesUsed = new int256[](3);
+        uint256[] memory cdnBytesUsed = new uint256[](3);
+        uint256[] memory cacheMissBytesUsed = new uint256[](3);
 
         dataSetIds[0] = DATA_SET_ID_1;
         epochs[0] = 1;
@@ -637,8 +614,7 @@ contract FilBeamTest is Test {
             uint256 cacheMissBytesUsed1,
             uint256 maxReportedEpoch1,
             uint256 lastCDNSettlementEpoch1,
-            uint256 lastCacheMissSettlementEpoch1,
-            bool isInitialized1
+            uint256 lastCacheMissSettlementEpoch1
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
         assertEq(cdnBytesUsed1, 0);
@@ -646,7 +622,6 @@ contract FilBeamTest is Test {
         assertEq(maxReportedEpoch1, 0);
         assertEq(lastCDNSettlementEpoch1, 0);
         assertEq(lastCacheMissSettlementEpoch1, 0);
-        assertFalse(isInitialized1);
     }
 
     function test_SettleCDNPaymentRailBatch() public {
@@ -668,14 +643,14 @@ contract FilBeamTest is Test {
         vm.prank(user1);
         filBeam.settleCDNPaymentRailBatch(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,,) =
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytes1, 0);
         assertEq(cacheMissBytes1, 1500);
         assertEq(maxEpoch1, 2);
         assertEq(lastCDNEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2, uint256 lastCDNEpoch2,,) =
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2, uint256 lastCDNEpoch2,) =
             filBeam.getDataSetUsage(DATA_SET_ID_2);
         assertEq(cdnBytes2, 0);
         assertEq(cacheMissBytes2, 750);
@@ -713,14 +688,14 @@ contract FilBeamTest is Test {
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRailBatch(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,, uint256 lastCacheMissEpoch1,) =
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,, uint256 lastCacheMissEpoch1) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytes1, 3000);
         assertEq(cacheMissBytes1, 0);
         assertEq(maxEpoch1, 2);
         assertEq(lastCacheMissEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,, uint256 lastCacheMissEpoch2,) =
+        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,, uint256 lastCacheMissEpoch2) =
             filBeam.getDataSetUsage(DATA_SET_ID_2);
         assertEq(cdnBytes2, 1500);
         assertEq(cacheMissBytes2, 0);
@@ -802,7 +777,7 @@ contract FilBeamTest is Test {
         vm.expectRevert(DataSetNotInitialized.selector);
         filBeam.settleCDNPaymentRailBatch(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,,) =
+        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytes1, 1000);
         assertEq(cacheMissBytes1, 500);
@@ -848,7 +823,71 @@ contract FilBeamTest is Test {
         vm.prank(newController);
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
 
-        (uint256 cdnBytesUsed,,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        (uint256 cdnBytesUsed,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnBytesUsed, 1000);
+    }
+
+    function test_SetCDNRatePerByte() public {
+        uint256 newRate = 150;
+
+        vm.expectEmit(false, false, false, true);
+        emit CDNRateUpdated(CDN_RATE_PER_BYTE, newRate);
+
+        filBeam.setCDNRatePerByte(newRate);
+
+        assertEq(filBeam.cdnRatePerByte(), newRate);
+    }
+
+    function test_SetCDNRatePerByteRevertUnauthorized() public {
+        uint256 newRate = 150;
+
+        vm.prank(user1);
+        vm.expectRevert();
+        filBeam.setCDNRatePerByte(newRate);
+    }
+
+    function test_SetCDNRatePerByteRevertZeroRate() public {
+        vm.expectRevert(InvalidRate.selector);
+        filBeam.setCDNRatePerByte(0);
+    }
+
+    function test_SetCacheMissRatePerByte() public {
+        uint256 newRate = 250;
+
+        vm.expectEmit(false, false, false, true);
+        emit CacheMissRateUpdated(CACHE_MISS_RATE_PER_BYTE, newRate);
+
+        filBeam.setCacheMissRatePerByte(newRate);
+
+        assertEq(filBeam.cacheMissRatePerByte(), newRate);
+    }
+
+    function test_SetCacheMissRatePerByteRevertUnauthorized() public {
+        uint256 newRate = 250;
+
+        vm.prank(user1);
+        vm.expectRevert();
+        filBeam.setCacheMissRatePerByte(newRate);
+    }
+
+    function test_SetCacheMissRatePerByteRevertZeroRate() public {
+        vm.expectRevert(InvalidRate.selector);
+        filBeam.setCacheMissRatePerByte(0);
+    }
+
+    function test_RateUpdateAffectsNewSettlements() public {
+        vm.prank(filBeamController);
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+
+        filBeam.setCDNRatePerByte(150);
+        filBeam.setCacheMissRatePerByte(250);
+
+        filBeam.settleCDNPaymentRail(DATA_SET_ID_1);
+        (, uint256 cdnAmount1,,) = mockFWSS.getSettlement(0);
+        assertEq(cdnAmount1, 1000 * 150);
+
+        filBeam.settleCacheMissPaymentRail(DATA_SET_ID_1);
+        (,, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
+        assertEq(cacheMissAmount2, 500 * 250);
     }
 }

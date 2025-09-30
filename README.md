@@ -147,8 +147,8 @@ Cache Miss: scaled 1575 with 2 decimals
 function reportUsageRollup(
     uint256 dataSetId,
     uint256 newEpoch,
-    int256 cdnBytesUsed,
-    int256 cacheMissBytesUsed
+    uint256 cdnBytesUsed,
+    uint256 cacheMissBytesUsed
 ) external onlyFilBeamController
 ```
 
@@ -157,8 +157,8 @@ function reportUsageRollup(
 function reportUsageRollupBatch(
     uint256[] calldata dataSetIds,
     uint256[] calldata epochs,
-    int256[] calldata cdnBytesUsed,
-    int256[] calldata cacheMissBytesUsed
+    uint256[] calldata cdnBytesUsed,
+    uint256[] calldata cacheMissBytesUsed
 ) external onlyFilBeamController
 ```
 
@@ -190,6 +190,13 @@ function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamControl
 function transferOwnership(address newOwner) external onlyOwner
 function setFilBeamController(address _filBeamController) external onlyOwner
 ```
+
+**Rate Management**
+```solidity
+function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner
+function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwner
+```
+
 ### View Functions
 
 **Dataset Information**
@@ -199,8 +206,7 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
     uint256 cacheMissBytesUsed,
     uint256 maxReportedEpoch,
     uint256 lastCDNSettlementEpoch,
-    uint256 lastCacheMissSettlementEpoch,
-    bool isInitialized
+    uint256 lastCacheMissSettlementEpoch
 )
 ```
 

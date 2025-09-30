@@ -12,7 +12,6 @@ contract FilBeam is Ownable {
         uint256 maxReportedEpoch;
         uint256 lastCDNSettlementEpoch;
         uint256 lastCacheMissSettlementEpoch;
-        bool isInitialized;
     }
 
     IFWSS public fwss;
@@ -23,7 +22,7 @@ contract FilBeam is Ownable {
     mapping(uint256 => DataSetUsage) public dataSetUsage;
 
     event UsageReported(
-        uint256 indexed dataSetId, uint256 indexed epoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed
+        uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed
     );
 
     event CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount);
@@ -33,6 +32,10 @@ contract FilBeam is Ownable {
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
+
+    event CDNRateUpdated(uint256 oldRate, uint256 newRate);
+
+    event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
 
     constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)
         Ownable(msg.sender)
@@ -52,7 +55,7 @@ contract FilBeam is Ownable {
         _;
     }
 
-    function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
+    function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
         external
         onlyFilBeamController
     {
@@ -62,8 +65,8 @@ contract FilBeam is Ownable {
     function reportUsageRollupBatch(
         uint256[] calldata dataSetIds,
         uint256[] calldata epochs,
-        int256[] calldata cdnBytesUsed,
-        int256[] calldata cacheMissBytesUsed
+        uint256[] calldata cdnBytesUsed,
+        uint256[] calldata cacheMissBytesUsed
     ) external onlyFilBeamController {
         uint256 length = dataSetIds.length;
         if (length != epochs.length || length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
@@ -75,22 +78,17 @@ contract FilBeam is Ownable {
         }
     }
 
-    function _reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
+    function _reportUsageRollup(uint256 dataSetId, uint256 newEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
         internal
     {
         if (newEpoch == 0) revert InvalidEpoch();
-        if (cdnBytesUsed < 0 || cacheMissBytesUsed < 0) revert InvalidUsageAmount();
 
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (!usage.isInitialized) {
-            usage.isInitialized = true;
-        }
-
         if (newEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
 
-        usage.cdnBytesUsed += uint256(cdnBytesUsed);
-        usage.cacheMissBytesUsed += uint256(cacheMissBytesUsed);
+        usage.cdnBytesUsed += cdnBytesUsed;
+        usage.cacheMissBytesUsed += cacheMissBytesUsed;
         usage.maxReportedEpoch = newEpoch;
 
         emit UsageReported(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
@@ -109,7 +107,7 @@ contract FilBeam is Ownable {
     function _settleCDNPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (!usage.isInitialized) revert DataSetNotInitialized();
+        if (usage.maxReportedEpoch == 0) revert DataSetNotInitialized();
         if (usage.maxReportedEpoch <= usage.lastCDNSettlementEpoch) revert NoUsageToSettle();
 
         uint256 fromEpoch = usage.lastCDNSettlementEpoch + 1;
@@ -119,7 +117,9 @@ contract FilBeam is Ownable {
         usage.lastCDNSettlementEpoch = toEpoch;
         usage.cdnBytesUsed = 0;
 
-        fwss.settleCDNPaymentRails(dataSetId, cdnAmount, 0);
+        if (cdnAmount > 0) {
+            fwss.settleCDNPaymentRails(dataSetId, cdnAmount, 0);
+        }
 
         emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
     }
@@ -137,7 +137,7 @@ contract FilBeam is Ownable {
     function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (!usage.isInitialized) revert DataSetNotInitialized();
+        if (usage.maxReportedEpoch == 0) revert DataSetNotInitialized();
         if (usage.maxReportedEpoch <= usage.lastCacheMissSettlementEpoch) revert NoUsageToSettle();
 
         uint256 fromEpoch = usage.lastCacheMissSettlementEpoch + 1;
@@ -147,13 +147,15 @@ contract FilBeam is Ownable {
         usage.lastCacheMissSettlementEpoch = toEpoch;
         usage.cacheMissBytesUsed = 0;
 
-        fwss.settleCDNPaymentRails(dataSetId, 0, cacheMissAmount);
+        if (cacheMissAmount > 0) {
+            fwss.settleCDNPaymentRails(dataSetId, 0, cacheMissAmount);
+        }
 
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
 
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController {
-        if (!dataSetUsage[dataSetId].isInitialized) revert DataSetNotInitialized();
+        if (dataSetUsage[dataSetId].maxReportedEpoch == 0) revert DataSetNotInitialized();
 
         fwss.terminateCDNPaymentRails(dataSetId);
 
@@ -169,6 +171,24 @@ contract FilBeam is Ownable {
         emit FilBeamControllerUpdated(oldController, _filBeamController);
     }
 
+    function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner {
+        if (_cdnRatePerByte == 0) revert InvalidRate();
+
+        uint256 oldRate = cdnRatePerByte;
+        cdnRatePerByte = _cdnRatePerByte;
+
+        emit CDNRateUpdated(oldRate, _cdnRatePerByte);
+    }
+
+    function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwner {
+        if (_cacheMissRatePerByte == 0) revert InvalidRate();
+
+        uint256 oldRate = cacheMissRatePerByte;
+        cacheMissRatePerByte = _cacheMissRatePerByte;
+
+        emit CacheMissRateUpdated(oldRate, _cacheMissRatePerByte);
+    }
+
     function getDataSetUsage(uint256 dataSetId)
         external
         view
@@ -177,8 +197,7 @@ contract FilBeam is Ownable {
             uint256 cacheMissBytesUsed,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
-            uint256 lastCacheMissSettlementEpoch_,
-            bool isInitialized
+            uint256 lastCacheMissSettlementEpoch_
         )
     {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
@@ -187,8 +206,7 @@ contract FilBeam is Ownable {
             usage.cacheMissBytesUsed,
             usage.maxReportedEpoch,
             usage.lastCDNSettlementEpoch,
-            usage.lastCacheMissSettlementEpoch,
-            usage.isInitialized
+            usage.lastCacheMissSettlementEpoch
         );
     }
 }
