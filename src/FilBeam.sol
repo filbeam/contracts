@@ -32,6 +32,8 @@ contract FilBeam is Ownable {
 
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
+    event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
+
     constructor(
         address fwssAddress,
         uint256 _cdnRatePerByte,
@@ -161,6 +163,15 @@ contract FilBeam is Ownable {
         fwss.terminateCDNPaymentRails(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
+    }
+
+    function setFilBeamController(address _filBeamController) external onlyOwner {
+        if (_filBeamController == address(0)) revert InvalidUsageAmount();
+
+        address oldController = filBeamController;
+        filBeamController = _filBeamController;
+
+        emit FilBeamControllerUpdated(oldController, _filBeamController);
     }
 
     function getDataSetUsage(uint256 dataSetId)

@@ -7,13 +7,13 @@
 The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit) and cache-miss data set egress usage data reported by the off-chain rollup worker and settlement of payment rails. Payment rails are managed by the Filecoin Warm Storage Service (FWSS) contract. The FilBeam contract interacts with the FWSS contract to facilitate fund transfers based on reported usage data with rate-based billing.
 
 #### Initialization
-**Method**: `initialize(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address initialOwner, address _filBeamController)`
+**Method**: `constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address initialOwner, address _filBeamController)`
 
 **Parameters**:
 - `address fwssAddress`: Address of the FWSS contract
 - `uint256 _cdnRatePerByte`: Rate per byte for CDN usage billing (must be > 0)
 - `uint256 _cacheMissRatePerByte`: Rate per byte for cache-miss usage billing (must be > 0)
-- `address initialOwner`: Initial owner address for contract upgrades
+- `address initialOwner`: Initial owner address for contract management
 - `address _filBeamController`: Address authorized to report usage and terminate payment rails
 
 **Validations**:
@@ -143,18 +143,27 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - **Requirements**: New owner cannot be zero address
 - **Purpose**: Transfer contract ownership
 
+#### FilBeam Controller Management
+**Method**: `setFilBeamController(address _filBeamController)`
+
+- **Access**: Contract owner only
+- **Requirements**: FilBeam controller cannot be zero address
+- **Purpose**: Update the authorized address for usage reporting and payment rail termination
+- **Events**: Emits `FilBeamControllerUpdated` event
+
 #### Events
 - `UsageReported(uint256 indexed dataSetId, uint256 indexed epoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)`
 - `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
+- `FilBeamControllerUpdated(address indexed oldController, address indexed newController)`
 
 #### Access Control
-- **Owner**: Address authorized to upgrade the contract implementation
+- **Owner**: Address authorized to manage contract ownership and set FilBeam controller
 - **FilBeam Controller**: Address authorized to report usage and terminate payment rails
 
 #### Error Conditions
-- `OnlyOwner()`: Caller is not the contract owner (for upgrades)
+- `OwnableUnauthorizedAccount(address)`: Caller is not the contract owner
 - `Unauthorized()`: Caller is not the FilBeam controller
 - `InvalidEpoch()`: Invalid epoch number or ordering
 - `NoUsageToSettle()`: No unreported usage available for settlement

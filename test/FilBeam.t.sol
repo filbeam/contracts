@@ -29,6 +29,8 @@ contract FilBeamTest is Test {
 
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
+    event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
+
     function setUp() public {
         owner = address(this);
         filBeamController = makeAddr("filBeamController");
@@ -813,5 +815,45 @@ contract FilBeamTest is Test {
         assertEq(lastCDNEpoch1, 0);
 
         assertEq(mockFWSS.getSettlementsCount(), 0);
+    }
+
+    function test_SetFilBeamController() public {
+        address newController = makeAddr("newController");
+
+        vm.expectEmit(true, true, false, true);
+        emit FilBeamControllerUpdated(filBeamController, newController);
+
+        filBeam.setFilBeamController(newController);
+
+        assertEq(filBeam.filBeamController(), newController);
+    }
+
+    function test_SetFilBeamControllerRevertUnauthorized() public {
+        address newController = makeAddr("newController");
+
+        vm.prank(user1);
+        vm.expectRevert();
+        filBeam.setFilBeamController(newController);
+    }
+
+    function test_SetFilBeamControllerRevertZeroAddress() public {
+        vm.expectRevert(InvalidUsageAmount.selector);
+        filBeam.setFilBeamController(address(0));
+    }
+
+    function test_SetFilBeamControllerUpdatesAccess() public {
+        address newController = makeAddr("newController");
+
+        filBeam.setFilBeamController(newController);
+
+        vm.prank(filBeamController);
+        vm.expectRevert(Unauthorized.selector);
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+
+        vm.prank(newController);
+        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
+
+        (uint256 cdnBytesUsed,,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnBytesUsed, 1000);
     }
 }
