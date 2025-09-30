@@ -8,3 +8,4 @@ error NoUsageToSettle();
 error InvalidUsageAmount();
 error DataSetNotInitialized();
 error InvalidRate();
+error InvalidAddress();

@@ -54,7 +54,7 @@ contract FilBeamTest is Test {
     }
 
     function test_InitializeRevertZeroAddress() public {
-        vm.expectRevert(InvalidUsageAmount.selector);
+        vm.expectRevert(InvalidAddress.selector);
         new FilBeam(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamController);
     }
 
@@ -67,7 +67,7 @@ contract FilBeamTest is Test {
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
-        vm.expectRevert(InvalidUsageAmount.selector);
+        vm.expectRevert(InvalidAddress.selector);
         new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0));
     }
 
@@ -832,7 +832,7 @@ contract FilBeamTest is Test {
     }
 
     function test_SetFilBeamControllerRevertZeroAddress() public {
-        vm.expectRevert(InvalidUsageAmount.selector);
+        vm.expectRevert(InvalidAddress.selector);
         filBeam.setFilBeamController(address(0));
     }
 

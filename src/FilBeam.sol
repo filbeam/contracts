@@ -37,9 +37,9 @@ contract FilBeam is Ownable {
     constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)
         Ownable(msg.sender)
     {
-        if (fwssAddress == address(0)) revert InvalidUsageAmount();
+        if (fwssAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
-        if (_filBeamController == address(0)) revert InvalidUsageAmount();
+        if (_filBeamController == address(0)) revert InvalidAddress();
 
         fwss = IFWSS(fwssAddress);
         cdnRatePerByte = _cdnRatePerByte;
@@ -161,7 +161,7 @@ contract FilBeam is Ownable {
     }
 
     function setFilBeamController(address _filBeamController) external onlyOwner {
-        if (_filBeamController == address(0)) revert InvalidUsageAmount();
+        if (_filBeamController == address(0)) revert InvalidAddress();
 
         address oldController = filBeamController;
         filBeamController = _filBeamController;
