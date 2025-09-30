@@ -34,16 +34,11 @@ contract FilBeam is Ownable {
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
 
-    constructor(
-        address fwssAddress,
-        uint256 _cdnRatePerByte,
-        uint256 _cacheMissRatePerByte,
-        address initialOwner,
-        address _filBeamController
-    ) Ownable(initialOwner) {
+    constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)
+        Ownable(msg.sender)
+    {
         if (fwssAddress == address(0)) revert InvalidUsageAmount();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
-        if (initialOwner == address(0)) revert InvalidUsageAmount();
         if (_filBeamController == address(0)) revert InvalidUsageAmount();
 
         fwss = IFWSS(fwssAddress);

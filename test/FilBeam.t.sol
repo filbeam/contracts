@@ -39,8 +39,8 @@ contract FilBeamTest is Test {
 
         mockFWSS = new MockFWSS();
 
-        // Deploy FilBeam contract
-        filBeam = new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
+        // Deploy FilBeam contract (deployer becomes owner)
+        filBeam = new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamController);
 
         mockFWSS.setAuthorizedCaller(address(filBeam));
     }
@@ -55,25 +55,20 @@ contract FilBeamTest is Test {
 
     function test_InitializeRevertZeroAddress() public {
         vm.expectRevert(InvalidUsageAmount.selector);
-        new FilBeam(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
+        new FilBeam(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamController);
     }
 
     function test_InitializeRevertZeroRate() public {
         vm.expectRevert(InvalidRate.selector);
-        new FilBeam(address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
+        new FilBeam(address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, filBeamController);
 
         vm.expectRevert(InvalidRate.selector);
-        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, 0, owner, filBeamController);
-    }
-
-    function test_InitializeRevertZeroOwner() public {
-        vm.expectRevert();
-        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0), filBeamController);
+        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, 0, filBeamController);
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
         vm.expectRevert(InvalidUsageAmount.selector);
-        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, address(0));
+        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0));
     }
 
     function test_ReportUsageRollup() public {

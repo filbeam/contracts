@@ -7,19 +7,20 @@
 The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit) and cache-miss data set egress usage data reported by the off-chain rollup worker and settlement of payment rails. Payment rails are managed by the Filecoin Warm Storage Service (FWSS) contract. The FilBeam contract interacts with the FWSS contract to facilitate fund transfers based on reported usage data with rate-based billing.
 
 #### Initialization
-**Method**: `constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address initialOwner, address _filBeamController)`
+**Method**: `constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)`
 
 **Parameters**:
 - `address fwssAddress`: Address of the FWSS contract
 - `uint256 _cdnRatePerByte`: Rate per byte for CDN usage billing (must be > 0)
 - `uint256 _cacheMissRatePerByte`: Rate per byte for cache-miss usage billing (must be > 0)
-- `address initialOwner`: Initial owner address for contract management
-- `address _filBeamController`: Address authorized to report usage and terminate payment rails
+- `address _filBeamController`: Address authorized to report usage and terminate payment rails (defaults to deployer if not specified in deployment)
+
+**Owner**:
+- The deployer (msg.sender) automatically becomes the contract owner
 
 **Validations**:
 - FWSS address cannot be zero address
 - Both rates must be greater than zero
-- Initial owner cannot be zero address
 - FilBeam controller cannot be zero address
 
 #### Data Structure

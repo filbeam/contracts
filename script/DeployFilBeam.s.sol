@@ -57,8 +57,8 @@ contract DeployFilBeam is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy the FilBeam contract with deployer as initial owner
-        FilBeam filBeam = new FilBeam(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, deployer, filBeamController);
+        // Deploy the FilBeam contract (deployer becomes owner)
+        FilBeam filBeam = new FilBeam(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamController);
 
         vm.stopBroadcast();
 
