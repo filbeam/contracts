@@ -1,12 +1,12 @@
 # FilBeam Contract
 
-FilBeam is an upgradeable smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and flexible decimal pricing support.
+FilBeam is a smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and flexible decimal pricing support.
 
 ## Features
 
 - **Usage Reporting**: Single and batch methods for reporting CDN and cache-miss usage
 - **Rail Settlements**: Independent settlement for CDN and cache-miss payment rails
-- **Upgradeable**: UUPS proxy pattern for contract upgrades
+- **Access Control**: Separate roles for contract management and usage reporting
 
 ## Built with Foundry
 
@@ -55,17 +55,18 @@ The FilBeam contract can be deployed using the provided deployment script with f
 Set the following environment variables before deployment:
 
 ```bash
-export PRIVATE_KEY="0x1234..."                    # Deployer's private key
+export PRIVATE_KEY="0x1234..."                    # Deployer's private key (deployer becomes contract owner)
 export FWSS_ADDRESS="0xabc..."                    # FWSS contract address
 export USDFC_ADDRESS="0xdef..."                   # USDFC token contract address
 export CDN_PRICE_USD_PER_TIB="1250"              # CDN price (scaled by PRICE_DECIMALS)
 export CACHE_MISS_PRICE_USD_PER_TIB="1575"       # Cache miss price (scaled by PRICE_DECIMALS)
 export PRICE_DECIMALS="2"                        # Number of decimal places (2 = cents precision)
+export FILBEAM_CONTROLLER="0x789..."             # (Optional) Address authorized to report usage (defaults to deployer)
 ```
 
 #### Deployment Examples
 
-**Example 1: Decimal Pricing ($12.50 CDN, $15.75 Cache Miss)**
+**Example 1: Decimal Pricing ($12.50 CDN, $15.75 Cache Miss) with Custom Controller**
 ```bash
 PRIVATE_KEY=0x1234... \
 FWSS_ADDRESS=0xabc... \
@@ -73,10 +74,11 @@ USDFC_ADDRESS=0xdef... \
 CDN_PRICE_USD_PER_TIB=1250 \
 CACHE_MISS_PRICE_USD_PER_TIB=1575 \
 PRICE_DECIMALS=2 \
+FILBEAM_CONTROLLER=0x789... \
 forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
 ```
 
-**Example 2: Whole Dollar Pricing ($10 CDN, $15 Cache Miss)**
+**Example 2: Whole Dollar Pricing ($10 CDN, $15 Cache Miss) - Controller Defaults to Deployer**
 ```bash
 PRIVATE_KEY=0x1234... \
 FWSS_ADDRESS=0xabc... \
@@ -95,6 +97,7 @@ USDFC_ADDRESS=0xdef... \
 CDN_PRICE_USD_PER_TIB=9995 \
 CACHE_MISS_PRICE_USD_PER_TIB=12750 \
 PRICE_DECIMALS=3 \
+FILBEAM_CONTROLLER=0x789... \
 forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
 ```
 
@@ -110,13 +113,11 @@ forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> -
 
 #### Deployment Output
 
-The deployment script provides detailed information about the deployed contracts:
+The deployment script provides detailed information about the deployed contract:
 
 ```
 === FilBeam Deployment Complete ===
-Implementation deployed at: 0x123...
-Proxy deployed at: 0x456...
-FilBeam contract available at: 0x456...
+FilBeam deployed at: 0x123...
 
 === Configuration ===
 FWSS Address: 0xabc...
@@ -124,6 +125,7 @@ USDFC Address: 0xdef...
 USDFC Decimals: 6
 Price Decimals: 2
 Owner: 0x789...
+FilBeam Controller: 0x789...
 
 === Pricing ===
 CDN Price (scaled input): 1250
@@ -147,7 +149,7 @@ function reportUsageRollup(
     uint256 newEpoch,
     int256 cdnBytesUsed,
     int256 cacheMissBytesUsed
-) external onlyOwner
+) external onlyFilBeamController
 ```
 
 **Batch Reports**
@@ -157,7 +159,7 @@ function reportUsageRollupBatch(
     uint256[] calldata epochs,
     int256[] calldata cdnBytesUsed,
     int256[] calldata cacheMissBytesUsed
-) external onlyOwner
+) external onlyFilBeamController
 ```
 
 ### Settlement Operations
@@ -178,15 +180,15 @@ function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external
 
 **Payment Rail Termination**
 ```solidity
-function terminateCDNPaymentRails(uint256 dataSetId) external onlyOwner
+function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController
 ```
 
 ### Contract Management
 
-**Ownership & Upgrades**
+**Ownership & Controller**
 ```solidity
 function transferOwnership(address newOwner) external onlyOwner
-function upgradeToAndCall(address newImplementation, bytes memory data) external onlyOwner
+function setFilBeamController(address _filBeamController) external onlyOwner
 ```
 ### View Functions
 
