@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/FilBeam.sol";
 
 interface IERC20 {
@@ -14,12 +13,15 @@ interface IERC20 {
  * @dev Deploys FilBeam contract with USDFC token integration
  *
  * Required Environment Variables:
- * - PRIVATE_KEY: Deployer's private key
+ * - PRIVATE_KEY: Deployer's private key (deployer becomes initial owner)
  * - FWSS_ADDRESS: Address of the FWSS contract
  * - USDFC_ADDRESS: Address of the USDFC ERC20 token contract
- * - CDN_PRICE_USD_PER_TIB: CDN egress price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB)
+ * - CDN_PRICE_USD_PER_TIB: CDN price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB)
  * - CACHE_MISS_PRICE_USD_PER_TIB: Cache miss price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1575 for $15.75/TiB)
  * - PRICE_DECIMALS: Number of decimal places for price inputs (e.g., 2 for cents, 0 for whole dollars)
+ *
+ * Optional Environment Variables:
+ * - FILBEAM_CONTROLLER: Address authorized to report usage (defaults to deployer)
  *
  * Example usage:
  * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... USDFC_ADDRESS=0xdef... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeam.s.sol --broadcast
@@ -35,6 +37,9 @@ contract DeployFilBeam is Script {
         // Get environment variables
         address fwssAddress = vm.envAddress("FWSS_ADDRESS");
         address usdfcAddress = vm.envAddress("USDFC_ADDRESS");
+
+        // Get filBeamController address (defaults to deployer if not set)
+        address filBeamController = vm.envOr("FILBEAM_CONTROLLER", deployer);
 
         // Get USD prices per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB with 2 decimals)
         uint256 cdnPriceUsdPerTibScaled = vm.envUint("CDN_PRICE_USD_PER_TIB");
@@ -52,23 +57,14 @@ contract DeployFilBeam is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy the implementation contract
-        FilBeam implementation = new FilBeam();
-
-        // Encode the initialize call
-        bytes memory initData =
-            abi.encodeCall(FilBeam.initialize, (fwssAddress, cdnRatePerByte, cacheMissRatePerByte, deployer, deployer));
-
-        // Deploy the proxy
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initData);
+        // Deploy the FilBeam contract with deployer as initial owner
+        FilBeam filBeam = new FilBeam(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, deployer, filBeamController);
 
         vm.stopBroadcast();
 
         // Log deployment information
         console2.log("=== FilBeam Deployment Complete ===");
-        console2.log("Implementation deployed at:", address(implementation));
-        console2.log("Proxy deployed at:", address(proxy));
-        console2.log("FilBeam contract available at:", address(proxy));
+        console2.log("FilBeam deployed at:", address(filBeam));
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("FWSS Address:", fwssAddress);
@@ -76,6 +72,7 @@ contract DeployFilBeam is Script {
         console2.log("USDFC Decimals:", usdfcDecimals);
         console2.log("Price Decimals:", priceDecimals);
         console2.log("Owner:", deployer);
+        console2.log("FilBeam Controller:", filBeamController);
         console2.log("");
         console2.log("=== Pricing ===");
         console2.log("CDN Price (scaled input):", cdnPriceUsdPerTibScaled);

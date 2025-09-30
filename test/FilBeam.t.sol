@@ -4,13 +4,10 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {FilBeam} from "../src/FilBeam.sol";
 import {MockFWSS} from "../src/mocks/MockFWSS.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import "../src/Errors.sol";
 
 contract FilBeamTest is Test {
     FilBeam public filBeam;
-    FilBeam public implementation;
-    ERC1967Proxy public proxy;
     MockFWSS public mockFWSS;
     address public owner;
     address public filBeamController;
@@ -40,20 +37,8 @@ contract FilBeamTest is Test {
 
         mockFWSS = new MockFWSS();
 
-        // Deploy implementation
-        implementation = new FilBeam();
-
-        // Encode initialize call
-        bytes memory initData = abi.encodeCall(
-            FilBeam.initialize,
-            (address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController)
-        );
-
-        // Deploy proxy
-        proxy = new ERC1967Proxy(address(implementation), initData);
-
-        // Cast proxy to FilBeam interface
-        filBeam = FilBeam(address(proxy));
+        // Deploy FilBeam contract
+        filBeam = new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
 
         mockFWSS.setAuthorizedCaller(address(filBeam));
     }
@@ -67,54 +52,26 @@ contract FilBeamTest is Test {
     }
 
     function test_InitializeRevertZeroAddress() public {
-        FilBeam newImplementation = new FilBeam();
-
-        bytes memory initData = abi.encodeCall(
-            FilBeam.initialize, (address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController)
-        );
-
         vm.expectRevert(InvalidUsageAmount.selector);
-        new ERC1967Proxy(address(newImplementation), initData);
+        new FilBeam(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
     }
 
     function test_InitializeRevertZeroRate() public {
-        FilBeam newImplementation = new FilBeam();
-
-        bytes memory initData1 = abi.encodeCall(
-            FilBeam.initialize, (address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController)
-        );
+        vm.expectRevert(InvalidRate.selector);
+        new FilBeam(address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, owner, filBeamController);
 
         vm.expectRevert(InvalidRate.selector);
-        new ERC1967Proxy(address(newImplementation), initData1);
-
-        bytes memory initData2 =
-            abi.encodeCall(FilBeam.initialize, (address(mockFWSS), CDN_RATE_PER_BYTE, 0, owner, filBeamController));
-
-        vm.expectRevert(InvalidRate.selector);
-        new ERC1967Proxy(address(newImplementation), initData2);
+        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, 0, owner, filBeamController);
     }
 
     function test_InitializeRevertZeroOwner() public {
-        FilBeam newImplementation = new FilBeam();
-
-        bytes memory initData = abi.encodeCall(
-            FilBeam.initialize,
-            (address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0), filBeamController)
-        );
-
-        vm.expectRevert(InvalidUsageAmount.selector);
-        new ERC1967Proxy(address(newImplementation), initData);
+        vm.expectRevert();
+        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0), filBeamController);
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
-        FilBeam newImplementation = new FilBeam();
-
-        bytes memory initData = abi.encodeCall(
-            FilBeam.initialize, (address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, address(0))
-        );
-
         vm.expectRevert(InvalidUsageAmount.selector);
-        new ERC1967Proxy(address(newImplementation), initData);
+        new FilBeam(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, owner, address(0));
     }
 
     function test_ReportUsageRollup() public {
@@ -466,43 +423,14 @@ contract FilBeamTest is Test {
         filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
 
         filBeam.settleCDNPaymentRail(DATA_SET_ID_1);
-        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
+        (, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
         assertEq(cdnAmount1, 1000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount1, 0);
 
         filBeam.settleCacheMissPaymentRail(DATA_SET_ID_1);
-        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
+        (, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
         assertEq(cdnAmount2, 0);
         assertEq(cacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
-    }
-
-    function test_UpgradeContract() public {
-        // Report some usage first
-        vm.prank(filBeamController);
-        filBeam.reportUsageRollup(DATA_SET_ID_1, 1, 1000, 500);
-
-        // Create new implementation
-        FilBeam newImplementation = new FilBeam();
-
-        // Upgrade to new implementation (only owner can do this)
-        filBeam.upgradeToAndCall(address(newImplementation), "");
-
-        // Verify state is preserved after upgrade
-        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,,) =
-            filBeam.getDataSetUsage(DATA_SET_ID_1);
-
-        assertEq(cdnBytesUsed, 1000);
-        assertEq(cacheMissBytesUsed, 500);
-        assertEq(maxReportedEpoch, 1);
-        assertEq(filBeam.owner(), owner);
-    }
-
-    function test_UpgradeContractRevertOnlyOwner() public {
-        FilBeam newImplementation = new FilBeam();
-
-        vm.prank(user1);
-        vm.expectRevert();
-        filBeam.upgradeToAndCall(address(newImplementation), "");
     }
 
     function test_ReportUsageRollupBatch() public {

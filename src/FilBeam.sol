@@ -3,11 +3,9 @@ pragma solidity ^0.8.13;
 
 import "./interfaces/IFWSS.sol";
 import "./Errors.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
+contract FilBeam is Ownable {
     struct DataSetUsage {
         uint256 cdnBytesUsed;
         uint256 cacheMissBytesUsed;
@@ -34,20 +32,17 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
-    function initialize(
+    constructor(
         address fwssAddress,
         uint256 _cdnRatePerByte,
         uint256 _cacheMissRatePerByte,
         address initialOwner,
         address _filBeamController
-    ) public initializer {
+    ) Ownable(initialOwner) {
         if (fwssAddress == address(0)) revert InvalidUsageAmount();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (initialOwner == address(0)) revert InvalidUsageAmount();
         if (_filBeamController == address(0)) revert InvalidUsageAmount();
-
-        __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init();
 
         fwss = IFWSS(fwssAddress);
         cdnRatePerByte = _cdnRatePerByte;
@@ -59,8 +54,6 @@ contract FilBeam is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         if (msg.sender != filBeamController) revert Unauthorized();
         _;
     }
-
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, int256 cdnBytesUsed, int256 cacheMissBytesUsed)
         external
