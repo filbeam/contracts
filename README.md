@@ -1,6 +1,6 @@
 # FilBeam Contract
 
-FilBeam is a smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and flexible decimal pricing support.
+FilBeam is a smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and usage-based billing for data egress.
 
 ## Features
 
@@ -48,95 +48,29 @@ $ anvil
 
 ### Deploy FilBeam Contract
 
-The FilBeam contract can be deployed using the provided deployment script with flexible pricing configuration.
+The FilBeam contract requires the following constructor parameters:
 
-#### Environment Variables
+```solidity
+constructor(
+    address fwssAddress,           // FWSS contract address
+    uint256 _cdnRatePerByte,       // Rate per byte for CDN usage
+    uint256 _cacheMissRatePerByte, // Rate per byte for cache-miss usage
+    address _filBeamController      // Address authorized to report usage
+)
+```
 
-Set the following environment variables before deployment:
+#### Deployment Example
+
+Deploy the contract using Forge:
 
 ```bash
-export PRIVATE_KEY="0x1234..."                    # Deployer's private key (deployer becomes contract owner)
-export FWSS_ADDRESS="0xabc..."                    # FWSS contract address
-export USDFC_ADDRESS="0xdef..."                   # USDFC token contract address
-export CDN_PRICE_USD_PER_TIB="1250"              # CDN price (scaled by PRICE_DECIMALS)
-export CACHE_MISS_PRICE_USD_PER_TIB="1575"       # Cache miss price (scaled by PRICE_DECIMALS)
-export PRICE_DECIMALS="2"                        # Number of decimal places (2 = cents precision)
-export FILBEAM_CONTROLLER="0x789..."             # (Optional) Address authorized to report usage (defaults to deployer)
+forge create --rpc-url <your_rpc_url> \
+    --private-key <your_private_key> \
+    src/FilBeam.sol:FilBeam \
+    --constructor-args <fwss_address> <cdn_rate> <cache_miss_rate> <controller_address>
 ```
 
-#### Deployment Examples
-
-**Example 1: Decimal Pricing ($12.50 CDN, $15.75 Cache Miss) with Custom Controller**
-```bash
-PRIVATE_KEY=0x1234... \
-FWSS_ADDRESS=0xabc... \
-USDFC_ADDRESS=0xdef... \
-CDN_PRICE_USD_PER_TIB=1250 \
-CACHE_MISS_PRICE_USD_PER_TIB=1575 \
-PRICE_DECIMALS=2 \
-FILBEAM_CONTROLLER=0x789... \
-forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
-```
-
-**Example 2: Whole Dollar Pricing ($10 CDN, $15 Cache Miss) - Controller Defaults to Deployer**
-```bash
-PRIVATE_KEY=0x1234... \
-FWSS_ADDRESS=0xabc... \
-USDFC_ADDRESS=0xdef... \
-CDN_PRICE_USD_PER_TIB=10 \
-CACHE_MISS_PRICE_USD_PER_TIB=15 \
-PRICE_DECIMALS=0 \
-forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
-```
-
-**Example 3: High Precision Pricing ($9.995 CDN, $12.750 Cache Miss)**
-```bash
-PRIVATE_KEY=0x1234... \
-FWSS_ADDRESS=0xabc... \
-USDFC_ADDRESS=0xdef... \
-CDN_PRICE_USD_PER_TIB=9995 \
-CACHE_MISS_PRICE_USD_PER_TIB=12750 \
-PRICE_DECIMALS=3 \
-FILBEAM_CONTROLLER=0x789... \
-forge script script/DeployFilBeam.s.sol:DeployFilBeam --rpc-url <your_rpc_url> --broadcast
-```
-
-#### Pricing Configuration Guide
-
-| Desired Price | CDN_PRICE_USD_PER_TIB | PRICE_DECIMALS | Result |
-|---------------|----------------------|----------------|---------|
-| $10.00/TiB    | 10                   | 0              | $10.00  |
-| $12.50/TiB    | 1250                 | 2              | $12.50  |
-| $9.99/TiB     | 999                  | 2              | $9.99   |
-| $15.750/TiB   | 15750                | 3              | $15.750 |
-| $7.5/TiB      | 75                   | 1              | $7.5    |
-
-#### Deployment Output
-
-The deployment script provides detailed information about the deployed contract:
-
-```
-=== FilBeam Deployment Complete ===
-FilBeam deployed at: 0x123...
-
-=== Configuration ===
-FWSS Address: 0xabc...
-USDFC Address: 0xdef...
-USDFC Decimals: 6
-Price Decimals: 2
-Owner: 0x789...
-FilBeam Controller: 0x789...
-
-=== Pricing ===
-CDN Price (scaled input): 1250
-CDN Rate (USDFC per byte): 11368
-Cache Miss Price (scaled input): 1575
-Cache Miss Rate (USDFC per byte): 14324
-
-=== Actual USD Prices ===
-CDN: scaled 1250 with 2 decimals
-Cache Miss: scaled 1575 with 2 decimals
-```
+**Note**: The deployer address automatically becomes the contract owner.
 
 ## Contract API
 
@@ -218,9 +152,9 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 - **Independent Rails**: CDN and cache-miss settlements operate independently
 
 ### Pricing Model
-- **Rate-Based**: Usage calculated as `bytes * rate_per_byte`
-- **Decimal Support**: Flexible pricing with configurable decimal precision
-- **Token Agnostic**: Works with any ERC20 token (USDFC assumed)
+- **Rate-Based**: Usage calculated as `usage_bytes * rate_per_byte`
+- **Configurable Rates**: Owner can update rates via `setCDNRatePerByte` and `setCacheMissRatePerByte`
+- **Direct Settlement**: Rates are applied directly during settlement calculations
 
 ### Rail Settlement 
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately
