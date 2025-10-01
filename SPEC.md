@@ -59,9 +59,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
   - Processes all reports atomically (all succeed or all fail)
   - Maintains same epoch ordering and validation rules per dataset
   - Prevents duplicate epoch reporting within the batch
-- **Gas Efficiency**: Significantly reduces transaction costs for bulk reporting operations
 - **Events**: Emits individual `UsageReported` event for each processed report
-- **Use Case**: Ideal for rollup workers reporting multiple usage periods
 
 #### Payment Rail Settlement
 
@@ -86,9 +84,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
   - Processes all settlements atomically (all succeed or all fail)
   - Each dataset follows same validation and settlement logic as single method
   - Maintains independent operation per dataset
-- **Gas Efficiency**: Significantly reduces transaction costs for bulk settlement operations
 - **Events**: Emits individual `CDNSettlement` event for each processed dataset
-- **Use Case**: Ideal for batch settlement operations across multiple datasets
 
 **Method**: `settleCacheMissPaymentRail(uint256 dataSetId)`
 
@@ -111,9 +107,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
   - Processes all settlements atomically (all succeed or all fail)
   - Each dataset follows same validation and settlement logic as single method
   - Maintains independent operation per dataset
-- **Gas Efficiency**: Significantly reduces transaction costs for bulk settlement operations
 - **Events**: Emits individual `CacheMissSettlement` event for each processed dataset
-- **Use Case**: Ideal for Storage Providers performing bulk settlement operations
 
 #### Payment Rail Termination
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
@@ -199,7 +193,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 
 ### Key Implementation Features
 
-#### Rate-Based Billing
+#### Rate-Based Settlement
 - Configurable rates per byte for both CDN and cache-miss usage
 - Settlement amounts calculated as: `usage * rate`
 - Rates set at contract deployment and can be updated by owner via `setCDNRatePerByte` and `setCacheMissRatePerByte`

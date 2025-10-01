@@ -1,6 +1,6 @@
 # FilBeam Contract
 
-FilBeam is a smart contract for managing CDN and cache-miss usage-based payments in the Filecoin ecosystem. It provides batch processing capabilities and usage-based billing for data egress.
+FilBeam is a smart contract used for aggregating CDN and cache-miss usage data and managing payment settlements for CDN payment rails operated by [Filecoin Warm Storage Service](https://github.com/FilOzone/filecoin-services).
 
 ## Features
 
@@ -8,13 +8,14 @@ FilBeam is a smart contract for managing CDN and cache-miss usage-based payments
 - **Rail Settlements**: Independent settlement for CDN and cache-miss payment rails
 - **Access Control**: Separate roles for contract management and usage reporting
 
-## Built with Foundry
-
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+## Foundry
 
 Documentation: https://book.getfoundry.sh/
 
-## Usage
+## Prerequisites
+- [Foundry](https://getfoundry.sh/) - Ethereum development toolchain
+
+### Usage
 
 ### Build
 
@@ -34,18 +35,6 @@ $ forge test
 $ forge fmt
 ```
 
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
 ### Deploy FilBeam Contract
 
 The FilBeam contract requires the following constructor parameters:
@@ -61,13 +50,19 @@ constructor(
 
 #### Deployment Example
 
-Deploy the contract using Forge:
+Deploy the contract using Forge script:
 
 ```bash
-forge create --rpc-url <your_rpc_url> \
-    --private-key <your_private_key> \
-    src/FilBeam.sol:FilBeam \
-    --constructor-args <fwss_address> <cdn_rate> <cache_miss_rate> <controller_address>
+PRIVATE_KEY=<deployer_private_key> \
+FILBEAM_CONTROLLER=<filbeam_controller_address> \
+FWSS_ADDRESS=<fwss_contract_address> \
+USDFC_ADDRESS=<usdc_contract_address> \
+CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
+CACHE_MISS_PRICE_USD_PER_TIB=<cache_miss_price_usd_per_tib> \
+PRICE_DECIMALS=<price_decimals> \
+forge script script/DeployFilBeam.s.sol \
+--rpc-url <your_rpc_url> \
+--broadcast
 ```
 
 **Note**: The deployer address automatically becomes the contract owner.
@@ -152,7 +147,7 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 - **Independent Rails**: CDN and cache-miss settlements operate independently
 
 ### Pricing Model
-- **Rate-Based**: Usage calculated as `usage_bytes * rate_per_byte`
+- **Usage-Based**: Calculated as `usage_bytes * rate_per_byte`
 - **Configurable Rates**: Owner can update rates via `setCDNRatePerByte` and `setCacheMissRatePerByte`
 - **Direct Settlement**: Rates are applied directly during settlement calculations
 
