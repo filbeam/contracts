@@ -114,12 +114,12 @@ contract FilBeam is Ownable {
         uint256 toEpoch = usage.maxReportedEpoch;
         uint256 cdnAmount = usage.cdnBytesUsed * cdnRatePerByte;
 
-        usage.lastCDNSettlementEpoch = toEpoch;
-        usage.cdnBytesUsed = 0;
-
         if (cdnAmount > 0) {
             fwss.settleCDNPaymentRails(dataSetId, cdnAmount, 0);
         }
+
+        usage.lastCDNSettlementEpoch = toEpoch;
+        usage.cdnBytesUsed = 0;
 
         emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
     }
@@ -144,12 +144,12 @@ contract FilBeam is Ownable {
         uint256 toEpoch = usage.maxReportedEpoch;
         uint256 cacheMissAmount = usage.cacheMissBytesUsed * cacheMissRatePerByte;
 
-        usage.lastCacheMissSettlementEpoch = toEpoch;
-        usage.cacheMissBytesUsed = 0;
-
         if (cacheMissAmount > 0) {
             fwss.settleCDNPaymentRails(dataSetId, 0, cacheMissAmount);
         }
+
+        usage.lastCacheMissSettlementEpoch = toEpoch;
+        usage.cacheMissBytesUsed = 0;
 
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
