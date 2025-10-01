@@ -155,8 +155,6 @@ contract FilBeam is Ownable {
     }
 
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController {
-        if (dataSetUsage[dataSetId].maxReportedEpoch == 0) revert DataSetNotInitialized();
-
         fwss.terminateCDNPaymentRails(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);

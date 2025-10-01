@@ -252,12 +252,6 @@ contract FilBeamTest is Test {
         filBeam.terminateCDNPaymentRails(DATA_SET_ID_1);
     }
 
-    function test_TerminateCDNPaymentRailsRevertDataSetNotInitialized() public {
-        vm.prank(filBeamController);
-        vm.expectRevert(DataSetNotInitialized.selector);
-        filBeam.terminateCDNPaymentRails(DATA_SET_ID_1);
-    }
-
     function test_TransferOwnership() public {
         filBeam.transferOwnership(user1);
         assertEq(filBeam.owner(), user1);
