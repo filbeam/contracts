@@ -148,7 +148,7 @@ contract FilBeamOperator is Ownable {
         emit PaymentRailsTerminated(dataSetId);
     }
 
-    function setFilBeamController(address _filBeamOperatorController) external onlyOwner {
+    function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner {
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
         address oldController = filBeamOperatorController;

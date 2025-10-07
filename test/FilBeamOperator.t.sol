@@ -993,7 +993,7 @@ contract FilBeamOperatorTest is Test {
         vm.expectEmit(true, true, false, true);
         emit FilBeamControllerUpdated(filBeamOperatorController, newController);
 
-        filBeam.setFilBeamController(newController);
+        filBeam.setFilBeamOperatorController(newController);
 
         assertEq(filBeam.filBeamOperatorController(), newController);
     }
@@ -1003,18 +1003,18 @@ contract FilBeamOperatorTest is Test {
 
         vm.prank(user1);
         vm.expectRevert();
-        filBeam.setFilBeamController(newController);
+        filBeam.setFilBeamOperatorController(newController);
     }
 
     function test_SetFilBeamControllerRevertZeroAddress() public {
         vm.expectRevert(InvalidAddress.selector);
-        filBeam.setFilBeamController(address(0));
+        filBeam.setFilBeamOperatorController(address(0));
     }
 
     function test_SetFilBeamControllerUpdatesAccess() public {
         address newController = makeAddr("newController");
 
-        filBeam.setFilBeamController(newController);
+        filBeam.setFilBeamOperatorController(newController);
 
         vm.prank(filBeamOperatorController);
         vm.expectRevert(Unauthorized.selector);
