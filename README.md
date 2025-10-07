@@ -4,7 +4,7 @@ FilBeamOperator is a smart contract used for aggregating CDN and cache-miss usag
 
 ## Features
 
-- **Usage Reporting**: Single and batch methods for reporting CDN and cache-miss usage
+- **Usage Reporting**: Batch methods for reporting CDN and cache-miss usage
 - **Rail Settlements**: Independent settlement for CDN and cache-miss payment rails
 - **Access Control**: Separate roles for contract management and usage reporting
 
@@ -71,17 +71,6 @@ forge script script/DeployFilBeamOperator.s.sol \
 
 ### Usage Reporting
 
-**Single Report**
-```solidity
-function recordUsageRollup(
-    uint256 dataSetId,
-    uint256 toEpoch,
-    uint256 cdnBytesUsed,
-    uint256 cacheMissBytesUsed
-) external onlyFilBeamOperatorController
-```
-
-**Batch Reports**
 ```solidity
 function recordUsageRollupBatch(
     uint256[] calldata dataSetIds,
@@ -93,13 +82,6 @@ function recordUsageRollupBatch(
 
 ### Settlement Operations
 
-**Single Settlement**
-```solidity
-function settleCDNPaymentRail(uint256 dataSetId) external
-function settleCacheMissPaymentRail(uint256 dataSetId) external
-```
-
-**Batch Settlement**
 ```solidity
 function settleCDNPaymentRailBatch(uint256[] calldata dataSetIds) external
 function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external

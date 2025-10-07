@@ -32,40 +32,35 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - `uint256 lastCacheMissSettlementEpoch`: Last epoch settled for cache-miss payment rail
 
 #### Usage Reporting
-**Method**: `recordUsageRollup(uint256 dataSetId, uint256 toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
+
+**Method**: `recordUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
 
 - **Access**: FilBeamOperator controller only
-- **Purpose**: Accepts periodic usage reports from the rollup worker
+- **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
 - **Epoch Requirements**:
   - Epoch must be > 0
   - Epoch must be greater than previously reported epochs for the dataset
   - Each epoch can only be reported once per dataset
 - **Usage Requirements**:
   - Usage accumulates in the dataset between settlements
+- **Parameter Requirements**:
+  - All arrays must have equal length
+- **Batch Processing**:
+  - Processes all reports atomically (all succeed or all fail)
+  - Maintains epoch ordering and validation rules per dataset
+  - Prevents duplicate epoch reporting within the batch
 - **State Updates**:
   - Initialize dataset on first report (sets maxReportedEpoch to non-zero value)
   - Accumulate usage data
   - Update max reported epoch
-- **Events**: Emits `UsageReported` event with uint256 values
-
-**Method**: `recordUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
-
-- **Access**: FilBeamOperator controller only
-- **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
-- **Parameter Requirements**:
-  - All arrays must have equal length
-  - Each array element follows same validation rules as single method
-- **Batch Processing**:
-  - Processes all reports atomically (all succeed or all fail)
-  - Maintains same epoch ordering and validation rules per dataset
-  - Prevents duplicate epoch reporting within the batch
 - **Events**: Emits individual `UsageReported` event for each processed report
 
 #### Payment Rail Settlement
 
-**Method**: `settleCDNPaymentRail(uint256 dataSetId)`
+**Method**: `settleCDNPaymentRailBatch(uint256[] dataSetIds)`
 
 - **Access**: Publicly callable (anyone can trigger settlement)
+- **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last CDN settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
   - Calculate settlement amount: `cdnBytesUsed * cdnRatePerByte`
@@ -73,22 +68,16 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Reset accumulated CDN usage to zero
 - **State Updates**: Update last CDN settlement epoch to max reported epoch
 - **Requirements**: Dataset must be initialized and have unreported usage
-- **Events**: Emits `CDNSettlement` event
-- **Independent Operation**: Can be called independently of cache-miss settlement
-
-**Method**: `settleCDNPaymentRailBatch(uint256[] dataSetIds)`
-
-- **Access**: Publicly callable (anyone can trigger settlement)
-- **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
 - **Batch Processing**:
   - Processes all settlements atomically (all succeed or all fail)
-  - Each dataset follows same validation and settlement logic as single method
   - Maintains independent operation per dataset
 - **Events**: Emits individual `CDNSettlement` event for each processed dataset
+- **Independent Operation**: Can be called independently of cache-miss settlement
 
-**Method**: `settleCacheMissPaymentRail(uint256 dataSetId)`
+**Method**: `settleCacheMissPaymentRailBatch(uint256[] dataSetIds)`
 
 - **Access**: Publicly callable (typically called by Storage Providers)
+- **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last cache-miss settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
   - Calculate settlement amount: `cacheMissBytesUsed * cacheMissRatePerByte`
@@ -96,18 +85,11 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Reset accumulated cache-miss usage to zero
 - **State Updates**: Update last cache-miss settlement epoch to max reported epoch
 - **Requirements**: Dataset must be initialized and have unreported usage
-- **Events**: Emits `CacheMissSettlement` event
-- **Independent Operation**: Can be called independently of CDN settlement
-
-**Method**: `settleCacheMissPaymentRailBatch(uint256[] dataSetIds)`
-
-- **Access**: Publicly callable (typically called by Storage Providers)
-- **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
 - **Batch Processing**:
   - Processes all settlements atomically (all succeed or all fail)
-  - Each dataset follows same validation and settlement logic as single method
   - Maintains independent operation per dataset
 - **Events**: Emits individual `CacheMissSettlement` event for each processed dataset
+- **Independent Operation**: Can be called independently of CDN settlement
 
 #### Payment Rail Termination
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
