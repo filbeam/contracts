@@ -44,7 +44,7 @@ constructor(
     address fwssAddress,           // FWSS contract address
     uint256 _cdnRatePerByte,       // Rate per byte for CDN usage
     uint256 _cacheMissRatePerByte, // Rate per byte for cache-miss usage
-    address _filBeamController      // Address authorized to report usage
+    address _filBeamOperatorController      // Address authorized to report usage
 )
 ```
 
@@ -99,7 +99,7 @@ function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperato
 **Ownership & Controller**
 ```solidity
 function transferOwnership(address newOwner) external onlyOwner
-function setFilBeamOperatorController(address _filBeamController) external onlyOwner
+function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner
 ```
 
 **Rate Management**

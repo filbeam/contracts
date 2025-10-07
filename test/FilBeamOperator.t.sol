@@ -10,7 +10,7 @@ contract FilBeamOperatorTest is Test {
     FilBeamOperator public filBeam;
     MockFWSS public mockFWSS;
     address public owner;
-    address public filBeamController;
+    address public filBeamOperatorController;
     address public user1;
     address public user2;
 
@@ -37,14 +37,16 @@ contract FilBeamOperatorTest is Test {
 
     function setUp() public {
         owner = address(this);
-        filBeamController = makeAddr("filBeamController");
+        filBeamOperatorController = makeAddr("filBeamOperatorController");
         user1 = makeAddr("user1");
         user2 = makeAddr("user2");
 
         mockFWSS = new MockFWSS();
 
         // Deploy FilBeamOperator contract (deployer becomes owner)
-        filBeam = new FilBeamOperator(address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamController);
+        filBeam = new FilBeamOperator(
+            address(mockFWSS), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController
+        );
 
         mockFWSS.setAuthorizedCaller(address(filBeam));
     }
@@ -59,22 +61,22 @@ contract FilBeamOperatorTest is Test {
     function test_Initialize() public view {
         assertEq(address(filBeam.fwss()), address(mockFWSS));
         assertEq(filBeam.owner(), owner);
-        assertEq(filBeam.filBeamController(), filBeamController);
+        assertEq(filBeam.filBeamOperatorController(), filBeamOperatorController);
         assertEq(filBeam.cdnRatePerByte(), CDN_RATE_PER_BYTE);
         assertEq(filBeam.cacheMissRatePerByte(), CACHE_MISS_RATE_PER_BYTE);
     }
 
     function test_InitializeRevertZeroAddress() public {
         vm.expectRevert(InvalidAddress.selector);
-        new FilBeamOperator(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamController);
+        new FilBeamOperator(address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController);
     }
 
     function test_InitializeRevertZeroRate() public {
         vm.expectRevert(InvalidRate.selector);
-        new FilBeamOperator(address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, filBeamController);
+        new FilBeamOperator(address(mockFWSS), 0, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController);
 
         vm.expectRevert(InvalidRate.selector);
-        new FilBeamOperator(address(mockFWSS), CDN_RATE_PER_BYTE, 0, filBeamController);
+        new FilBeamOperator(address(mockFWSS), CDN_RATE_PER_BYTE, 0, filBeamOperatorController);
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
@@ -86,7 +88,7 @@ contract FilBeamOperatorTest is Test {
         vm.expectEmit(true, true, false, true);
         emit UsageReported(DATA_SET_ID_1, 1, 1000, 500);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -110,7 +112,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ReportUsageRollupMultipleEpochs() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -151,7 +153,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ReportUsageRollupRevertZeroEpoch() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -162,7 +164,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ReportUsageRollupRevertDuplicateEpoch() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -170,7 +172,7 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -181,7 +183,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ReportUsageRollupRevertInvalidEpochOrder() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(3),
@@ -189,7 +191,7 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -200,7 +202,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCDNPaymentRail() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -243,7 +245,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCacheMissPaymentRail() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -294,7 +296,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettlementRevertNoUsageToSettle() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -313,7 +315,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_TerminateCDNPaymentRails() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -324,14 +326,14 @@ contract FilBeamOperatorTest is Test {
         vm.expectEmit(true, false, false, false);
         emit PaymentRailsTerminated(DATA_SET_ID_1);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.terminateCDNPaymentRails(DATA_SET_ID_1);
 
         assertTrue(mockFWSS.terminatedDataSets(DATA_SET_ID_1));
     }
 
     function test_TerminateCDNPaymentRailsRevertUnauthorized() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -365,7 +367,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_MultipleDataSets() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -397,7 +399,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_PartialSettlement() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -413,7 +415,7 @@ contract FilBeamOperatorTest is Test {
         vm.stopPrank();
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(3),
@@ -439,7 +441,7 @@ contract FilBeamOperatorTest is Test {
         vm.assume(cdnBytes < type(uint256).max / 2);
         vm.assume(cacheMissBytes < type(uint256).max / 2);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(dataSetId),
             _singleUint256Array(epoch),
@@ -456,7 +458,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ZeroUsageReporting() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1), _singleUint256Array(0), _singleUint256Array(0)
         );
@@ -475,7 +477,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_IndependentSettlement() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -510,7 +512,7 @@ contract FilBeamOperatorTest is Test {
         assertEq(lastCDNSettlementEpoch1, 3);
         assertEq(lastCacheMissSettlementEpoch1, 0);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(4),
@@ -547,7 +549,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_RateCalculations() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -594,7 +596,7 @@ contract FilBeamOperatorTest is Test {
         vm.expectEmit(true, true, false, true);
         emit UsageReported(DATA_SET_ID_2, 1, 1500, 750);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
         (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
@@ -614,7 +616,7 @@ contract FilBeamOperatorTest is Test {
         uint256[] memory cdnBytesUsed = new uint256[](2);
         uint256[] memory cacheMissBytesUsed = new uint256[](2);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidUsageAmount.selector);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
@@ -646,13 +648,13 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[0] = 1000;
         cacheMissBytesUsed[0] = 500;
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
 
     function test_ReportUsageRollupBatchRevertDuplicateEpoch() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -670,13 +672,13 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[0] = 2000;
         cacheMissBytesUsed[0] = 1000;
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
 
     function test_ReportUsageRollupBatchRevertInvalidEpochOrder() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(3),
@@ -694,7 +696,7 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[0] = 2000;
         cacheMissBytesUsed[0] = 1000;
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
@@ -705,7 +707,7 @@ contract FilBeamOperatorTest is Test {
         uint256[] memory cdnBytesUsed = new uint256[](0);
         uint256[] memory cacheMissBytesUsed = new uint256[](0);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
     }
 
@@ -725,7 +727,7 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[1] = 2000;
         cacheMissBytesUsed[1] = 1000;
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
@@ -758,7 +760,7 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[2] = 1500;
         cacheMissBytesUsed[2] = 750;
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
@@ -778,7 +780,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCDNPaymentRailBatch() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -838,7 +840,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCacheMissPaymentRailBatch() public {
-        vm.startPrank(filBeamController);
+        vm.startPrank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -926,7 +928,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCDNPaymentRailBatchRevertNoUsageToSettle() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -943,7 +945,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettleCacheMissPaymentRailBatchRevertNoUsageToSettle() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -960,7 +962,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_SettlementBatchAtomicity() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),
@@ -989,11 +991,11 @@ contract FilBeamOperatorTest is Test {
         address newController = makeAddr("newController");
 
         vm.expectEmit(true, true, false, true);
-        emit FilBeamControllerUpdated(filBeamController, newController);
+        emit FilBeamControllerUpdated(filBeamOperatorController, newController);
 
         filBeam.setFilBeamController(newController);
 
-        assertEq(filBeam.filBeamController(), newController);
+        assertEq(filBeam.filBeamOperatorController(), newController);
     }
 
     function test_SetFilBeamControllerRevertUnauthorized() public {
@@ -1014,7 +1016,7 @@ contract FilBeamOperatorTest is Test {
 
         filBeam.setFilBeamController(newController);
 
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         vm.expectRevert(Unauthorized.selector);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -1084,7 +1086,7 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_RateUpdateAffectsNewSettlements() public {
-        vm.prank(filBeamController);
+        vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
             _singleUint256Array(1),

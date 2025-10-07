@@ -17,7 +17,7 @@ contract FilBeamOperator is Ownable {
     IFWSS public fwss;
     uint256 public cdnRatePerByte;
     uint256 public cacheMissRatePerByte;
-    address public filBeamController;
+    address public filBeamOperatorController;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
 
@@ -37,21 +37,24 @@ contract FilBeamOperator is Ownable {
 
     event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
 
-    constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)
-        Ownable(msg.sender)
-    {
+    constructor(
+        address fwssAddress,
+        uint256 _cdnRatePerByte,
+        uint256 _cacheMissRatePerByte,
+        address _filBeamOperatorController
+    ) Ownable(msg.sender) {
         if (fwssAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
-        if (_filBeamController == address(0)) revert InvalidAddress();
+        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
         fwss = IFWSS(fwssAddress);
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
-        filBeamController = _filBeamController;
+        filBeamOperatorController = _filBeamOperatorController;
     }
 
-    modifier onlyFilBeamController() {
-        if (msg.sender != filBeamController) revert Unauthorized();
+    modifier onlyFilBeamOperatorController() {
+        if (msg.sender != filBeamOperatorController) revert Unauthorized();
         _;
     }
 
@@ -60,7 +63,7 @@ contract FilBeamOperator is Ownable {
         uint256[] calldata epochs,
         uint256[] calldata cdnBytesUsed,
         uint256[] calldata cacheMissBytesUsed
-    ) external onlyFilBeamController {
+    ) external onlyFilBeamOperatorController {
         uint256 length = dataSetIds.length;
         if (length != epochs.length || length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
             revert InvalidUsageAmount();
@@ -139,19 +142,19 @@ contract FilBeamOperator is Ownable {
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
 
-    function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController {
+    function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
         fwss.terminateCDNPaymentRails(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
     }
 
-    function setFilBeamController(address _filBeamController) external onlyOwner {
-        if (_filBeamController == address(0)) revert InvalidAddress();
+    function setFilBeamController(address _filBeamOperatorController) external onlyOwner {
+        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
-        address oldController = filBeamController;
-        filBeamController = _filBeamController;
+        address oldController = filBeamOperatorController;
+        filBeamOperatorController = _filBeamOperatorController;
 
-        emit FilBeamControllerUpdated(oldController, _filBeamController);
+        emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
     }
 
     function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner {

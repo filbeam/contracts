@@ -38,8 +38,8 @@ contract DeployFilBeamOperator is Script {
         address fwssAddress = vm.envAddress("FWSS_ADDRESS");
         address usdfcAddress = vm.envAddress("USDFC_ADDRESS");
 
-        // Get filBeamController address (defaults to deployer if not set)
-        address filBeamController = vm.envOr("FILBEAM_CONTROLLER", deployer);
+        // Get filBeamOperatorController address (defaults to deployer if not set)
+        address filBeamOperatorController = vm.envOr("FILBEAM_CONTROLLER", deployer);
 
         // Get USD prices per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB with 2 decimals)
         uint256 cdnPriceUsdPerTibScaled = vm.envUint("CDN_PRICE_USD_PER_TIB");
@@ -59,7 +59,7 @@ contract DeployFilBeamOperator is Script {
 
         // Deploy the FilBeamOperator contract (deployer becomes owner)
         FilBeamOperator filBeam =
-            new FilBeamOperator(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamController);
+            new FilBeamOperator(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamOperatorController);
 
         vm.stopBroadcast();
 
@@ -73,7 +73,7 @@ contract DeployFilBeamOperator is Script {
         console2.log("USDFC Decimals:", usdfcDecimals);
         console2.log("Price Decimals:", priceDecimals);
         console2.log("Owner:", deployer);
-        console2.log("FilBeamOperator Controller:", filBeamController);
+        console2.log("FilBeamOperator Controller:", filBeamOperatorController);
         console2.log("");
         console2.log("=== Pricing ===");
         console2.log("CDN Price (scaled input):", cdnPriceUsdPerTibScaled);
