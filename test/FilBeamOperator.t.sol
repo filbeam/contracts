@@ -97,15 +97,15 @@ contract FilBeamOperatorTest is Test {
         );
 
         (
-            uint256 cdnBytesUsed,
-            uint256 cacheMissBytesUsed,
+            uint256 cdnAmount,
+            uint256 cacheMissAmount,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
             uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnBytesUsed, 1000);
-        assertEq(cacheMissBytesUsed, 500);
+        assertEq(cdnAmount, 1000 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount, 500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 1);
         assertEq(lastCDNSettlementEpoch_, 0);
         assertEq(lastCacheMissSettlementEpoch_, 0);
@@ -133,11 +133,11 @@ contract FilBeamOperatorTest is Test {
         );
         vm.stopPrank();
 
-        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,) =
+        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch,,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnBytesUsed, 4500);
-        assertEq(cacheMissBytesUsed, 2250);
+        assertEq(cdnAmount, 4500 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount, 2250 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 3);
     }
 
@@ -224,24 +224,24 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         (
-            uint256 cdnBytesUsed,
-            uint256 cacheMissBytesUsed,
+            uint256 cdnAmount,
+            uint256 cacheMissAmount,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
             uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnBytesUsed, 0);
-        assertEq(cacheMissBytesUsed, 1500);
+        assertEq(cdnAmount, 0);
+        assertEq(cacheMissAmount, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 2);
         assertEq(lastCDNSettlementEpoch_, 2);
         assertEq(lastCacheMissSettlementEpoch_, 0);
 
         assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
+        (uint256 dataSetId, uint256 settledCdnAmount, uint256 settledCacheMissAmount,) = mockFWSS.getSettlement(0);
         assertEq(dataSetId, DATA_SET_ID_1);
-        assertEq(cdnAmount, 300000);
-        assertEq(cacheMissAmount, 0);
+        assertEq(settledCdnAmount, 300000);
+        assertEq(settledCacheMissAmount, 0);
     }
 
     function test_SettleCacheMissPaymentRail() public {
@@ -267,24 +267,24 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         (
-            uint256 cdnBytesUsed,
-            uint256 cacheMissBytesUsed,
+            uint256 cdnAmount,
+            uint256 cacheMissAmount,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
             uint256 lastCacheMissSettlementEpoch_
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnBytesUsed, 3000);
-        assertEq(cacheMissBytesUsed, 0);
+        assertEq(cdnAmount, 3000 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount, 0);
         assertEq(maxReportedEpoch, 2);
         assertEq(lastCDNSettlementEpoch_, 0);
         assertEq(lastCacheMissSettlementEpoch_, 2);
 
         assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
+        (uint256 dataSetId, uint256 settledCdnAmount, uint256 settledCacheMissAmount,) = mockFWSS.getSettlement(0);
         assertEq(dataSetId, DATA_SET_ID_1);
-        assertEq(cdnAmount, 0);
-        assertEq(cacheMissAmount, 300000);
+        assertEq(settledCdnAmount, 0);
+        assertEq(settledCacheMissAmount, 300000);
     }
 
     function test_SettlementRevertDataSetNotInitialized() public {
@@ -387,15 +387,17 @@ contract FilBeamOperatorTest is Test {
 
         assertEq(mockFWSS.getSettlementsCount(), 2);
 
-        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId1, DATA_SET_ID_1);
-        assertEq(cdnAmount1, 100000);
-        assertEq(cacheMissAmount1, 0);
+        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
+            mockFWSS.getSettlement(0);
+        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        assertEq(settledCdnAmount1, 100000);
+        assertEq(settledCacheMissAmount1, 0);
 
-        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(dataSetId2, DATA_SET_ID_2);
-        assertEq(cdnAmount2, 0);
-        assertEq(cacheMissAmount2, 200000);
+        (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
+            mockFWSS.getSettlement(1);
+        assertEq(settledDataSetId2, DATA_SET_ID_2);
+        assertEq(settledCdnAmount2, 0);
+        assertEq(settledCacheMissAmount2, 200000);
     }
 
     function test_PartialSettlement() public {
@@ -438,8 +440,8 @@ contract FilBeamOperatorTest is Test {
     {
         vm.assume(dataSetId != 0);
         vm.assume(epoch > 0 && epoch < type(uint256).max);
-        vm.assume(cdnBytes < type(uint256).max / 2);
-        vm.assume(cacheMissBytes < type(uint256).max / 2);
+        vm.assume(cdnBytes < type(uint256).max / CDN_RATE_PER_BYTE);
+        vm.assume(cacheMissBytes < type(uint256).max / CACHE_MISS_RATE_PER_BYTE);
 
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
@@ -449,11 +451,10 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(cacheMissBytes)
         );
 
-        (uint256 cdnBytesUsed, uint256 cacheMissBytesUsed, uint256 maxReportedEpoch,,) =
-            filBeam.getDataSetUsage(dataSetId);
+        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch,,) = filBeam.getDataSetUsage(dataSetId);
 
-        assertEq(cdnBytesUsed, cdnBytes);
-        assertEq(cacheMissBytesUsed, cacheMissBytes);
+        assertEq(cdnAmount, cdnBytes * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount, cacheMissBytes * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, epoch);
     }
 
@@ -502,12 +503,12 @@ contract FilBeamOperatorTest is Test {
 
         (
             ,
-            uint256 cacheMissBytesUsed1,
+            uint256 cacheMissAmount1,
             uint256 maxReportedEpoch1,
             uint256 lastCDNSettlementEpoch1,
             uint256 lastCacheMissSettlementEpoch1
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cacheMissBytesUsed1, 2250);
+        assertEq(cacheMissAmount1, 2250 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch1, 3);
         assertEq(lastCDNSettlementEpoch1, 3);
         assertEq(lastCacheMissSettlementEpoch1, 0);
@@ -523,29 +524,31 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         (
-            uint256 cdnBytesUsed2,
-            uint256 cacheMissBytesUsed2,
+            uint256 cdnAmount2,
+            uint256 cacheMissAmount2,
             uint256 maxReportedEpoch2,
             uint256 lastCDNSettlementEpoch2,
             uint256 lastCacheMissSettlementEpoch2
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytesUsed2, 800);
-        assertEq(cacheMissBytesUsed2, 0);
+        assertEq(cdnAmount2, 800 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount2, 0);
         assertEq(maxReportedEpoch2, 4);
         assertEq(lastCDNSettlementEpoch2, 3);
         assertEq(lastCacheMissSettlementEpoch2, 4);
 
         assertEq(mockFWSS.getSettlementsCount(), 2);
 
-        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId1, DATA_SET_ID_1);
-        assertEq(cdnAmount1, 450000);
-        assertEq(cacheMissAmount1, 0);
+        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
+            mockFWSS.getSettlement(0);
+        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        assertEq(settledCdnAmount1, 450000);
+        assertEq(settledCacheMissAmount1, 0);
 
-        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(dataSetId2, DATA_SET_ID_1);
-        assertEq(cdnAmount2, 0);
-        assertEq(cacheMissAmount2, 530000);
+        (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
+            mockFWSS.getSettlement(1);
+        assertEq(settledDataSetId2, DATA_SET_ID_1);
+        assertEq(settledCdnAmount2, 0);
+        assertEq(settledCacheMissAmount2, 530000);
     }
 
     function test_RateCalculations() public {
@@ -558,14 +561,14 @@ contract FilBeamOperatorTest is Test {
         );
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
-        assertEq(cdnAmount1, 1000 * CDN_RATE_PER_BYTE);
-        assertEq(cacheMissAmount1, 0);
+        (, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) = mockFWSS.getSettlement(0);
+        assertEq(settledCdnAmount1, 1000 * CDN_RATE_PER_BYTE);
+        assertEq(settledCacheMissAmount1, 0);
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(cdnAmount2, 0);
-        assertEq(cacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
+        (, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) = mockFWSS.getSettlement(1);
+        assertEq(settledCdnAmount2, 0);
+        assertEq(settledCacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
     }
 
     function test_ReportUsageRollupBatch() public {
@@ -599,14 +602,14 @@ contract FilBeamOperatorTest is Test {
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytes1, 3000);
-        assertEq(cacheMissBytes1, 1500);
+        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnAmount1, 3000 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount1, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,,) = filBeam.getDataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnBytes2, 1500);
-        assertEq(cacheMissBytes2, 750);
+        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2,,) = filBeam.getDataSetUsage(DATA_SET_ID_2);
+        assertEq(cdnAmount2, 1500 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount2, 750 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch2, 1);
     }
 
@@ -733,10 +736,10 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount,) = mockFWSS.getSettlement(0);
+        (uint256 dataSetId, uint256 settledCdnAmount, uint256 settledCacheMissAmount,) = mockFWSS.getSettlement(0);
         assertEq(dataSetId, DATA_SET_ID_1);
-        assertEq(cdnAmount, 300000);
-        assertEq(cacheMissAmount, 0);
+        assertEq(settledCdnAmount, 300000);
+        assertEq(settledCacheMissAmount, 0);
     }
 
     function test_ReportUsageRollupBatchAtomicity() public {
@@ -765,15 +768,15 @@ contract FilBeamOperatorTest is Test {
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
 
         (
-            uint256 cdnBytesUsed1,
-            uint256 cacheMissBytesUsed1,
+            uint256 cdnAmount1,
+            uint256 cacheMissAmount1,
             uint256 maxReportedEpoch1,
             uint256 lastCDNSettlementEpoch1,
             uint256 lastCacheMissSettlementEpoch1
         ) = filBeam.getDataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnBytesUsed1, 0);
-        assertEq(cacheMissBytesUsed1, 0);
+        assertEq(cdnAmount1, 0);
+        assertEq(cacheMissAmount1, 0);
         assertEq(maxReportedEpoch1, 0);
         assertEq(lastCDNSettlementEpoch1, 0);
         assertEq(lastCacheMissSettlementEpoch1, 0);
@@ -813,30 +816,32 @@ contract FilBeamOperatorTest is Test {
         vm.prank(user1);
         filBeam.settleCDNPaymentRails(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
+        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytes1, 0);
-        assertEq(cacheMissBytes1, 1500);
+        assertEq(cdnAmount1, 0);
+        assertEq(cacheMissAmount1, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1, 2);
         assertEq(lastCDNEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2, uint256 lastCDNEpoch2,) =
+        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2, uint256 lastCDNEpoch2,) =
             filBeam.getDataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnBytes2, 0);
-        assertEq(cacheMissBytes2, 750);
+        assertEq(cdnAmount2, 0);
+        assertEq(cacheMissAmount2, 750 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch2, 1);
         assertEq(lastCDNEpoch2, 1);
 
         assertEq(mockFWSS.getSettlementsCount(), 2);
-        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId1, DATA_SET_ID_1);
-        assertEq(cdnAmount1, 300000);
-        assertEq(cacheMissAmount1, 0);
+        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
+            mockFWSS.getSettlement(0);
+        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        assertEq(settledCdnAmount1, 300000);
+        assertEq(settledCacheMissAmount1, 0);
 
-        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(dataSetId2, DATA_SET_ID_2);
-        assertEq(cdnAmount2, 150000);
-        assertEq(cacheMissAmount2, 0);
+        (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
+            mockFWSS.getSettlement(1);
+        assertEq(settledDataSetId2, DATA_SET_ID_2);
+        assertEq(settledCdnAmount2, 150000);
+        assertEq(settledCacheMissAmount2, 0);
     }
 
     function test_SettleCacheMissPaymentRailBatch() public {
@@ -873,30 +878,32 @@ contract FilBeamOperatorTest is Test {
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRails(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1,, uint256 lastCacheMissEpoch1) =
+        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1,, uint256 lastCacheMissEpoch1) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytes1, 3000);
-        assertEq(cacheMissBytes1, 0);
+        assertEq(cdnAmount1, 3000 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount1, 0);
         assertEq(maxEpoch1, 2);
         assertEq(lastCacheMissEpoch1, 2);
 
-        (uint256 cdnBytes2, uint256 cacheMissBytes2, uint256 maxEpoch2,, uint256 lastCacheMissEpoch2) =
+        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2,, uint256 lastCacheMissEpoch2) =
             filBeam.getDataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnBytes2, 1500);
-        assertEq(cacheMissBytes2, 0);
+        assertEq(cdnAmount2, 1500 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount2, 0);
         assertEq(maxEpoch2, 1);
         assertEq(lastCacheMissEpoch2, 1);
 
         assertEq(mockFWSS.getSettlementsCount(), 2);
-        (uint256 dataSetId1, uint256 cdnAmount1, uint256 cacheMissAmount1,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId1, DATA_SET_ID_1);
-        assertEq(cdnAmount1, 0);
-        assertEq(cacheMissAmount1, 300000);
+        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
+            mockFWSS.getSettlement(0);
+        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        assertEq(settledCdnAmount1, 0);
+        assertEq(settledCacheMissAmount1, 300000);
 
-        (uint256 dataSetId2, uint256 cdnAmount2, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(dataSetId2, DATA_SET_ID_2);
-        assertEq(cdnAmount2, 0);
-        assertEq(cacheMissAmount2, 150000);
+        (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
+            mockFWSS.getSettlement(1);
+        assertEq(settledDataSetId2, DATA_SET_ID_2);
+        assertEq(settledCdnAmount2, 0);
+        assertEq(settledCacheMissAmount2, 150000);
     }
 
     function test_SettleCDNPaymentRailBatchEmptyArray() public {
@@ -977,10 +984,10 @@ contract FilBeamOperatorTest is Test {
         vm.expectRevert(DataSetNotInitialized.selector);
         filBeam.settleCDNPaymentRails(dataSetIds);
 
-        (uint256 cdnBytes1, uint256 cacheMissBytes1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
+        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytes1, 1000);
-        assertEq(cacheMissBytes1, 500);
+        assertEq(cdnAmount1, 1000 * CDN_RATE_PER_BYTE);
+        assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1, 1);
         assertEq(lastCDNEpoch1, 0);
 
@@ -1033,8 +1040,8 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
 
-        (uint256 cdnBytesUsed,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnBytesUsed, 1000);
+        (uint256 cdnAmount,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnAmount, 1000 * CDN_RATE_PER_BYTE);
     }
 
     function test_SetCDNRatePerByte() public {
@@ -1098,11 +1105,11 @@ contract FilBeamOperatorTest is Test {
         filBeam.setCacheMissRatePerByte(250);
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 cdnAmount1,,) = mockFWSS.getSettlement(0);
-        assertEq(cdnAmount1, 1000 * 150);
+        (, uint256 settledCdnAmount1,,) = mockFWSS.getSettlement(0);
+        assertEq(settledCdnAmount1, 1000 * CDN_RATE_PER_BYTE);
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (,, uint256 cacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(cacheMissAmount2, 500 * 250);
+        (,, uint256 settledCacheMissAmount2,) = mockFWSS.getSettlement(1);
+        assertEq(settledCacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
     }
 }

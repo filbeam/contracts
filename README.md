@@ -112,8 +112,8 @@ function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwn
 **Dataset Information**
 ```solidity
 function getDataSetUsage(uint256 dataSetId) external view returns (
-    uint256 cdnBytesUsed,
-    uint256 cacheMissBytesUsed,
+    uint256 cdnAmount,
+    uint256 cacheMissAmount,
     uint256 maxReportedEpoch,
     uint256 lastCDNSettlementEpoch,
     uint256 lastCacheMissSettlementEpoch
@@ -128,9 +128,9 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 - **Independent Rails**: CDN and cache-miss settlements operate independently
 
 ### Pricing Model
-- **Usage-Based**: Calculated as `usage_bytes * rate_per_byte`
+- **Usage-Based**: Calculated as `usage_bytes * rate_per_byte` at report time
 - **Configurable Rates**: Owner can update rates via `setCDNRatePerByte` and `setCacheMissRatePerByte`
-- **Direct Settlement**: Rates are applied directly during settlement calculations
+- **Rate Changes**: Rate changes only affect future usage reports, not accumulated unreported usage
 
 ### Rail Settlement 
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately

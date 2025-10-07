@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FilBeamOperator is Ownable {
     struct DataSetUsage {
-        uint256 cdnBytesUsed;
-        uint256 cacheMissBytesUsed;
+        uint256 cdnAmount;
+        uint256 cacheMissAmount;
         uint256 maxReportedEpoch;
         uint256 lastCDNSettlementEpoch;
         uint256 lastCacheMissSettlementEpoch;
@@ -83,8 +83,12 @@ contract FilBeamOperator is Ownable {
 
         if (toEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
 
-        usage.cdnBytesUsed += cdnBytesUsed;
-        usage.cacheMissBytesUsed += cacheMissBytesUsed;
+        // Calculate amounts using current rates at report time
+        uint256 cdnAmount = cdnBytesUsed * cdnRatePerByte;
+        uint256 cacheMissAmount = cacheMissBytesUsed * cacheMissRatePerByte;
+
+        usage.cdnAmount += cdnAmount;
+        usage.cacheMissAmount += cacheMissAmount;
         usage.maxReportedEpoch = toEpoch;
 
         emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
@@ -104,14 +108,14 @@ contract FilBeamOperator is Ownable {
 
         uint256 fromEpoch = usage.lastCDNSettlementEpoch + 1;
         uint256 toEpoch = usage.maxReportedEpoch;
-        uint256 cdnAmount = usage.cdnBytesUsed * cdnRatePerByte;
+        uint256 cdnAmount = usage.cdnAmount;
 
         if (cdnAmount > 0) {
             fwss.settleFilBeamPaymentRails(dataSetId, cdnAmount, 0);
         }
 
         usage.lastCDNSettlementEpoch = toEpoch;
-        usage.cdnBytesUsed = 0;
+        usage.cdnAmount = 0;
 
         emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
     }
@@ -130,14 +134,14 @@ contract FilBeamOperator is Ownable {
 
         uint256 fromEpoch = usage.lastCacheMissSettlementEpoch + 1;
         uint256 toEpoch = usage.maxReportedEpoch;
-        uint256 cacheMissAmount = usage.cacheMissBytesUsed * cacheMissRatePerByte;
+        uint256 cacheMissAmount = usage.cacheMissAmount;
 
         if (cacheMissAmount > 0) {
             fwss.settleFilBeamPaymentRails(dataSetId, 0, cacheMissAmount);
         }
 
         usage.lastCacheMissSettlementEpoch = toEpoch;
-        usage.cacheMissBytesUsed = 0;
+        usage.cacheMissAmount = 0;
 
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
@@ -179,8 +183,8 @@ contract FilBeamOperator is Ownable {
         external
         view
         returns (
-            uint256 cdnBytesUsed,
-            uint256 cacheMissBytesUsed,
+            uint256 cdnAmount,
+            uint256 cacheMissAmount,
             uint256 maxReportedEpoch,
             uint256 lastCDNSettlementEpoch_,
             uint256 lastCacheMissSettlementEpoch_
@@ -188,8 +192,8 @@ contract FilBeamOperator is Ownable {
     {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
         return (
-            usage.cdnBytesUsed,
-            usage.cacheMissBytesUsed,
+            usage.cdnAmount,
+            usage.cacheMissAmount,
             usage.maxReportedEpoch,
             usage.lastCDNSettlementEpoch,
             usage.lastCacheMissSettlementEpoch

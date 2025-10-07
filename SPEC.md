@@ -25,8 +25,8 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Data Structure
 **DataSetUsage Struct**:
-- `uint256 cdnBytesUsed`: Accumulated CDN bytes used between settlements
-- `uint256 cacheMissBytesUsed`: Accumulated cache-miss bytes used between settlements
+- `uint256 cdnAmount`: Accumulated CDN settlement amount between settlements (calculated at report time)
+- `uint256 cacheMissAmount`: Accumulated cache-miss settlement amount between settlements (calculated at report time)
 - `uint256 maxReportedEpoch`: Highest epoch number reported for this dataset (0 indicates uninitialized dataset)
 - `uint256 lastCDNSettlementEpoch`: Last epoch settled for CDN payment rail
 - `uint256 lastCacheMissSettlementEpoch`: Last epoch settled for cache-miss payment rail
@@ -42,7 +42,8 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Epoch must be greater than previously reported epochs for the dataset
   - Each epoch can only be reported once per dataset
 - **Usage Requirements**:
-  - Usage accumulates in the dataset between settlements
+  - Usage is converted to settlement amounts using current rates at report time
+  - Amounts accumulate in the dataset between settlements
 - **Parameter Requirements**:
   - All arrays must have equal length
 - **Batch Processing**:
@@ -51,9 +52,10 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Prevents duplicate epoch reporting within the batch
 - **State Updates**:
   - Initialize dataset on first report (sets maxReportedEpoch to non-zero value)
-  - Accumulate usage data
+  - Calculate amounts: `cdnAmount = cdnBytesUsed * cdnRatePerByte`, `cacheMissAmount = cacheMissBytesUsed * cacheMissRatePerByte`
+  - Accumulate calculated amounts
   - Update max reported epoch
-- **Events**: Emits individual `UsageReported` event for each processed report
+- **Events**: Emits individual `UsageReported` event for each processed report (contains bytes, not amounts)
 
 #### Payment Rail Settlement
 
@@ -63,9 +65,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last CDN settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
-  - Calculate settlement amount: `cdnBytesUsed * cdnRatePerByte`
-  - Only calls FWSS contract if calculated amount > 0 (gas optimization)
-  - Reset accumulated CDN usage to zero
+  - Use accumulated CDN amount (calculated at report time)
+  - Only calls FWSS contract if amount > 0 (gas optimization)
+  - Reset accumulated CDN amount to zero
 - **State Updates**: Update last CDN settlement epoch to max reported epoch
 - **Requirements**: Dataset must be initialized and have unreported usage
 - **Batch Processing**:
@@ -80,9 +82,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last cache-miss settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
-  - Calculate settlement amount: `cacheMissBytesUsed * cacheMissRatePerByte`
-  - Only calls FWSS contract if calculated amount > 0 (gas optimization)
-  - Reset accumulated cache-miss usage to zero
+  - Use accumulated cache-miss amount (calculated at report time)
+  - Only calls FWSS contract if amount > 0 (gas optimization)
+  - Reset accumulated cache-miss amount to zero
 - **State Updates**: Update last cache-miss settlement epoch to max reported epoch
 - **Requirements**: Dataset must be initialized and have unreported usage
 - **Batch Processing**:
@@ -103,8 +105,8 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 **Method**: `getDataSetUsage(uint256 dataSetId)`
 
 **Returns**:
-- `uint256 cdnBytesUsed`: Current accumulated CDN usage
-- `uint256 cacheMissBytesUsed`: Current accumulated cache-miss usage
+- `uint256 cdnAmount`: Current accumulated CDN settlement amount
+- `uint256 cacheMissAmount`: Current accumulated cache-miss settlement amount
 - `uint256 maxReportedEpoch`: Highest reported epoch (0 indicates uninitialized dataset)
 - `uint256 lastCDNSettlementEpoch`: Last CDN settlement epoch
 - `uint256 lastCacheMissSettlementEpoch`: Last cache-miss settlement epoch
@@ -177,18 +179,19 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Rate-Based Settlement
 - Configurable rates per byte for both CDN and cache-miss usage
-- Settlement amounts calculated as: `usage * rate`
+- Settlement amounts calculated at report time as: `usage * rate`
 - Rates set at contract deployment and can be updated by owner via `setCDNRatePerByte` and `setCacheMissRatePerByte`
+- Rate changes only affect future usage reports, not accumulated amounts
 
 #### Independent Settlement Rails
 - CDN and cache-miss settlements operate independently
 - Each rail tracks its own settlement epoch
 - Allows flexible settlement patterns for different stakeholders
 
-#### Usage Accumulation
-- Usage data accumulates between settlements
-- Only unsettled usage is stored in contract state
-- Settlement resets accumulated usage for that rail
+#### Amount Accumulation
+- Settlement amounts (calculated at report time) accumulate between settlements
+- Only unsettled amounts are stored in contract state
+- Settlement resets accumulated amounts for that rail
 
 #### Epoch Management
 - Strict epoch ordering enforcement
