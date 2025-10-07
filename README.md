@@ -130,7 +130,7 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 ### Pricing Model
 - **Usage-Based**: Calculated as `usage_bytes * rate_per_byte` at report time
 - **Configurable Rates**: Owner can update rates via `setCDNRatePerByte` and `setCacheMissRatePerByte`
-- **Rate Changes**: Rate changes only affect future usage reports, not accumulated unreported usage
+- **Rate Changes**: Rate changes only affect future usage reports, not accumulated non-settled usage amounts
 
 ### Rail Settlement 
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately
