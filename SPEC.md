@@ -182,7 +182,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 ### Filecoin Warm Storage Service (FWSS) Contract Interface
 
-**Method**: `settleCDNPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)`
+**Method**: `settleFilBeamPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)`
 - **Purpose**: Settle CDN or cache-miss payment rails based on calculated amounts
 - **Access**: Callable only by FilBeamOperator contract
 - **Parameters**: Either cdnAmount or cacheMissAmount will be zero depending on settlement type

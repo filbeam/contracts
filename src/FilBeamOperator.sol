@@ -115,7 +115,7 @@ contract FilBeamOperator is Ownable {
         uint256 cdnAmount = usage.cdnBytesUsed * cdnRatePerByte;
 
         if (cdnAmount > 0) {
-            fwss.settleCDNPaymentRails(dataSetId, cdnAmount, 0);
+            fwss.settleFilBeamPaymentRails(dataSetId, cdnAmount, 0);
         }
 
         usage.lastCDNSettlementEpoch = toEpoch;
@@ -145,7 +145,7 @@ contract FilBeamOperator is Ownable {
         uint256 cacheMissAmount = usage.cacheMissBytesUsed * cacheMissRatePerByte;
 
         if (cacheMissAmount > 0) {
-            fwss.settleCDNPaymentRails(dataSetId, 0, cacheMissAmount);
+            fwss.settleFilBeamPaymentRails(dataSetId, 0, cacheMissAmount);
         }
 
         usage.lastCacheMissSettlementEpoch = toEpoch;

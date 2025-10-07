@@ -33,7 +33,7 @@ contract MockFWSS is IFWSS {
         authorizedCaller = caller;
     }
 
-    function settleCDNPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)
+    function settleFilBeamPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)
         external
         onlyAuthorized
     {
