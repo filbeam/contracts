@@ -56,7 +56,6 @@ Deploy the contract using Forge script:
 PRIVATE_KEY=<deployer_private_key> \
 FILBEAM_CONTROLLER=<filbeam_controller_address> \
 FWSS_ADDRESS=<fwss_contract_address> \
-USDFC_ADDRESS=<usdc_contract_address> \
 CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
 CACHE_MISS_PRICE_USD_PER_TIB=<cache_miss_price_usd_per_tib> \
 PRICE_DECIMALS=<price_decimals> \
