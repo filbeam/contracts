@@ -33,7 +33,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Usage Reporting
 
-**Method**: `recordUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
+**Method**: `recordUsageRollups(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
 
 - **Access**: FilBeamOperator controller only
 - **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
@@ -57,7 +57,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Payment Rail Settlement
 
-**Method**: `settleCDNPaymentRailBatch(uint256[] dataSetIds)`
+**Method**: `settleCDNPaymentRails(uint256[] dataSetIds)`
 
 - **Access**: Publicly callable (anyone can trigger settlement)
 - **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
@@ -74,7 +74,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Events**: Emits individual `CDNSettlement` event for each processed dataset
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
-**Method**: `settleCacheMissPaymentRailBatch(uint256[] dataSetIds)`
+**Method**: `settleCacheMissPaymentRails(uint256[] dataSetIds)`
 
 - **Access**: Publicly callable (typically called by Storage Providers)
 - **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
@@ -193,5 +193,5 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 #### Epoch Management
 - Strict epoch ordering enforcement
 - Prevents duplicate epoch reporting
-- Supports batched reporting of multiple epochs via `recordUsageRollupBatch` method for gas efficiency
+- Supports batched reporting of multiple epochs via `recordUsageRollups` method for gas efficiency
 - Independent epoch tracking per dataset

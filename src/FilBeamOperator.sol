@@ -55,7 +55,7 @@ contract FilBeamOperator is Ownable {
         _;
     }
 
-    function recordUsageRollupBatch(
+    function recordUsageRollups(
         uint256[] calldata dataSetIds,
         uint256[] calldata epochs,
         uint256[] calldata cdnBytesUsed,
@@ -87,7 +87,7 @@ contract FilBeamOperator is Ownable {
         emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
-    function settleCDNPaymentRailBatch(uint256[] calldata dataSetIds) external {
+    function settleCDNPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
             _settleCDNPaymentRail(dataSetIds[i]);
         }
@@ -113,7 +113,7 @@ contract FilBeamOperator is Ownable {
         emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
     }
 
-    function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external {
+    function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
             _settleCacheMissPaymentRail(dataSetIds[i]);
         }

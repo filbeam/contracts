@@ -72,7 +72,7 @@ forge script script/DeployFilBeamOperator.s.sol \
 ### Usage Reporting
 
 ```solidity
-function recordUsageRollupBatch(
+function recordUsageRollups(
     uint256[] calldata dataSetIds,
     uint256[] calldata epochs,
     uint256[] calldata cdnBytesUsed,
@@ -83,8 +83,8 @@ function recordUsageRollupBatch(
 ### Settlement Operations
 
 ```solidity
-function settleCDNPaymentRailBatch(uint256[] calldata dataSetIds) external
-function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external
+function settleCDNPaymentRails(uint256[] calldata dataSetIds) external
+function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external
 ```
 
 ### Data Set Management
