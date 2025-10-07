@@ -1,6 +1,6 @@
-# FilBeam Contract
+# FilBeamOperator Contract
 
-FilBeam is a smart contract used for aggregating CDN and cache-miss usage data and managing payment settlements for CDN payment rails operated by [Filecoin Warm Storage Service](https://github.com/FilOzone/filecoin-services).
+FilBeamOperator is a smart contract used for aggregating CDN and cache-miss usage data and managing payment settlements for CDN payment rails operated by [Filecoin Warm Storage Service](https://github.com/FilOzone/filecoin-services).
 
 ## Features
 
@@ -35,9 +35,9 @@ $ forge test
 $ forge fmt
 ```
 
-### Deploy FilBeam Contract
+### Deploy FilBeamOperator Contract
 
-The FilBeam contract requires the following constructor parameters:
+The FilBeamOperator contract requires the following constructor parameters:
 
 ```solidity
 constructor(
@@ -60,7 +60,7 @@ USDFC_ADDRESS=<usdc_contract_address> \
 CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
 CACHE_MISS_PRICE_USD_PER_TIB=<cache_miss_price_usd_per_tib> \
 PRICE_DECIMALS=<price_decimals> \
-forge script script/DeployFilBeam.s.sol \
+forge script script/DeployFilBeamOperator.s.sol \
 --rpc-url <your_rpc_url> \
 --broadcast
 ```
@@ -73,22 +73,22 @@ forge script script/DeployFilBeam.s.sol \
 
 **Single Report**
 ```solidity
-function reportUsageRollup(
+function recordUsageRollup(
     uint256 dataSetId,
-    uint256 newEpoch,
+    uint256 toEpoch,
     uint256 cdnBytesUsed,
     uint256 cacheMissBytesUsed
-) external onlyFilBeamController
+) external onlyFilBeamOperatorController
 ```
 
 **Batch Reports**
 ```solidity
-function reportUsageRollupBatch(
+function recordUsageRollupBatch(
     uint256[] calldata dataSetIds,
     uint256[] calldata epochs,
     uint256[] calldata cdnBytesUsed,
     uint256[] calldata cacheMissBytesUsed
-) external onlyFilBeamController
+) external onlyFilBeamOperatorController
 ```
 
 ### Settlement Operations
@@ -109,7 +109,7 @@ function settleCacheMissPaymentRailBatch(uint256[] calldata dataSetIds) external
 
 **Payment Rail Termination**
 ```solidity
-function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamController
+function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController
 ```
 
 ### Contract Management
@@ -117,7 +117,7 @@ function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamControl
 **Ownership & Controller**
 ```solidity
 function transferOwnership(address newOwner) external onlyOwner
-function setFilBeamController(address _filBeamController) external onlyOwner
+function setFilBeamOperatorController(address _filBeamController) external onlyOwner
 ```
 
 **Rate Management**

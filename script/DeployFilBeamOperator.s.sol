@@ -2,15 +2,15 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
-import "../src/FilBeam.sol";
+import "../src/FilBeamOperator.sol";
 
 interface IERC20 {
     function decimals() external view returns (uint8);
 }
 
 /**
- * @title DeployFilBeam
- * @dev Deploys FilBeam contract with USDFC token integration
+ * @title DeployFilBeamOperator
+ * @dev Deploys FilBeamOperator contract with USDFC token integration
  *
  * Required Environment Variables:
  * - PRIVATE_KEY: Deployer's private key (deployer becomes initial owner)
@@ -26,7 +26,7 @@ interface IERC20 {
  * Example usage:
  * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... USDFC_ADDRESS=0xdef... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeam.s.sol --broadcast
  */
-contract DeployFilBeam is Script {
+contract DeployFilBeamOperator is Script {
     // Constants for conversion
     uint256 constant BYTES_PER_TIB = 1024 * 1024 * 1024 * 1024; // 1 TiB in bytes
 
@@ -57,14 +57,15 @@ contract DeployFilBeam is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy the FilBeam contract (deployer becomes owner)
-        FilBeam filBeam = new FilBeam(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamController);
+        // Deploy the FilBeamOperator contract (deployer becomes owner)
+        FilBeamOperator filBeam =
+            new FilBeamOperator(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamController);
 
         vm.stopBroadcast();
 
         // Log deployment information
-        console2.log("=== FilBeam Deployment Complete ===");
-        console2.log("FilBeam deployed at:", address(filBeam));
+        console2.log("=== FilBeamOperator Deployment Complete ===");
+        console2.log("FilBeamOperator deployed at:", address(filBeam));
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("FWSS Address:", fwssAddress);
@@ -72,7 +73,7 @@ contract DeployFilBeam is Script {
         console2.log("USDFC Decimals:", usdfcDecimals);
         console2.log("Price Decimals:", priceDecimals);
         console2.log("Owner:", deployer);
-        console2.log("FilBeam Controller:", filBeamController);
+        console2.log("FilBeamOperator Controller:", filBeamController);
         console2.log("");
         console2.log("=== Pricing ===");
         console2.log("CDN Price (scaled input):", cdnPriceUsdPerTibScaled);

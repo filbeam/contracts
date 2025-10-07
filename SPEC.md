@@ -1,10 +1,10 @@
 ## Specification
 
-### FilBeam (Operator) Contract
+### FilBeamOperator (Operator) Contract
 
 #### Overview
 
-The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit) and cache-miss data set egress usage data reported by the off-chain rollup worker and settlement of payment rails. Payment rails are managed by the Filecoin Warm Storage Service (FWSS) contract. The FilBeam contract interacts with the FWSS contract to facilitate fund transfers based on reported usage data with rate-based billing.
+The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (cache-hit) and cache-miss data set egress usage data reported by the off-chain rollup worker and settlement of payment rails. Payment rails are managed by the Filecoin Warm Storage Service (FWSS) contract. The FilBeamOperator contract interacts with the FWSS contract to facilitate fund transfers based on reported usage data with rate-based billing.
 
 #### Initialization
 **Method**: `constructor(address fwssAddress, uint256 _cdnRatePerByte, uint256 _cacheMissRatePerByte, address _filBeamController)`
@@ -21,7 +21,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 **Validations**:
 - FWSS address cannot be zero address
 - Both rates must be greater than zero
-- FilBeam controller cannot be zero address
+- FilBeamOperator controller cannot be zero address
 
 #### Data Structure
 **DataSetUsage Struct**:
@@ -32,9 +32,9 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - `uint256 lastCacheMissSettlementEpoch`: Last epoch settled for cache-miss payment rail
 
 #### Usage Reporting
-**Method**: `reportUsageRollup(uint256 dataSetId, uint256 newEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
+**Method**: `recordUsageRollup(uint256 dataSetId, uint256 toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
 
-- **Access**: FilBeam controller only
+- **Access**: FilBeamOperator controller only
 - **Purpose**: Accepts periodic usage reports from the rollup worker
 - **Epoch Requirements**:
   - Epoch must be > 0
@@ -48,9 +48,9 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
   - Update max reported epoch
 - **Events**: Emits `UsageReported` event with uint256 values
 
-**Method**: `reportUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
+**Method**: `recordUsageRollupBatch(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
 
-- **Access**: FilBeam controller only
+- **Access**: FilBeamOperator controller only
 - **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
 - **Parameter Requirements**:
   - All arrays must have equal length
@@ -112,7 +112,7 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 #### Payment Rail Termination
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
 
-- **Access**: FilBeam controller only
+- **Access**: FilBeamOperator controller only
 - **Requirements**: Dataset must be initialized
 - **Process**: Forward termination call to FWSS contract
 - **Events**: Emits `PaymentRailsTerminated` event
@@ -134,13 +134,13 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - **Requirements**: New owner cannot be zero address
 - **Purpose**: Transfer contract ownership
 
-#### FilBeam Controller Management
-**Method**: `setFilBeamController(address _filBeamController)`
+#### FilBeamOperator Controller Management
+**Method**: `setFilBeamOperatorController(address _filBeamController)`
 
 - **Access**: Contract owner only
-- **Requirements**: FilBeam controller cannot be zero address
+- **Requirements**: FilBeamOperator controller cannot be zero address
 - **Purpose**: Update the authorized address for usage reporting and payment rail termination
-- **Events**: Emits `FilBeamControllerUpdated` event
+- **Events**: Emits `FilBeamOperatorControllerUpdated` event
 
 #### Rate Management
 **Method**: `setCDNRatePerByte(uint256 _cdnRatePerByte)`
@@ -162,17 +162,17 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 - `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
-- `FilBeamControllerUpdated(address indexed oldController, address indexed newController)`
+- `FilBeamOperatorControllerUpdated(address indexed oldController, address indexed newController)`
 - `CDNRateUpdated(uint256 oldRate, uint256 newRate)`
 - `CacheMissRateUpdated(uint256 oldRate, uint256 newRate)`
 
 #### Access Control
-- **Owner**: Address authorized to manage contract ownership, set FilBeam controller, and update rates
-- **FilBeam Controller**: Address authorized to report usage and terminate payment rails
+- **Owner**: Address authorized to manage contract ownership, set FilBeamOperator controller, and update rates
+- **FilBeamOperator Controller**: Address authorized to report usage and terminate payment rails
 
 #### Error Conditions
 - `OwnableUnauthorizedAccount(address)`: Caller is not the contract owner
-- `Unauthorized()`: Caller is not the FilBeam controller
+- `Unauthorized()`: Caller is not the FilBeamOperator controller
 - `InvalidEpoch()`: Invalid epoch number or ordering
 - `NoUsageToSettle()`: No unreported usage available for settlement
 - `InvalidUsageAmount()`: Invalid array lengths in batch operations
@@ -184,12 +184,12 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 
 **Method**: `settleCDNPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)`
 - **Purpose**: Settle CDN or cache-miss payment rails based on calculated amounts
-- **Access**: Callable only by FilBeam contract
+- **Access**: Callable only by FilBeamOperator contract
 - **Parameters**: Either cdnAmount or cacheMissAmount will be zero depending on settlement type
 
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
 - **Purpose**: Terminate CDN payment rails for a specific dataset
-- **Access**: Callable only by FilBeam contract
+- **Access**: Callable only by FilBeamOperator contract
 
 ### Key Implementation Features
 
@@ -211,5 +211,5 @@ The Filecoin Beam (FilBeam) contract is responsible for managing CDN (cache-hit)
 #### Epoch Management
 - Strict epoch ordering enforcement
 - Prevents duplicate epoch reporting
-- Supports batched reporting of multiple epochs via `reportUsageRollupBatch` method for gas efficiency
+- Supports batched reporting of multiple epochs via `recordUsageRollupBatch` method for gas efficiency
 - Independent epoch tracking per dataset

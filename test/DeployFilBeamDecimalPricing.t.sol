@@ -2,10 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import "../script/DeployFilBeam.s.sol";
+import "../script/DeployFilBeamOperator.s.sol";
 
 // Test contract that exposes the internal function
-contract TestableDeployFilBeam is DeployFilBeam {
+contract TestableDeployFilBeamOperator is DeployFilBeamOperator {
     function calculateUsdfcPerBytePublic(uint256 usdPerTibScaled, uint8 priceDecimals, uint8 tokenDecimals)
         public
         pure
@@ -16,12 +16,12 @@ contract TestableDeployFilBeam is DeployFilBeam {
 }
 
 contract DeployFilBeamDecimalPricingTest is Test {
-    TestableDeployFilBeam deployer;
+    TestableDeployFilBeamOperator deployer;
 
     uint256 constant BYTES_PER_TIB = 1024 * 1024 * 1024 * 1024; // 1 TiB in bytes
 
     function setUp() public {
-        deployer = new TestableDeployFilBeam();
+        deployer = new TestableDeployFilBeamOperator();
     }
 
     function test_calculateUsdfcPerByte_WholeNumbers() public view {

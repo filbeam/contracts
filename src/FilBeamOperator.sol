@@ -5,7 +5,7 @@ import "./interfaces/IFWSS.sol";
 import "./Errors.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract FilBeam is Ownable {
+contract FilBeamOperator is Ownable {
     struct DataSetUsage {
         uint256 cdnBytesUsed;
         uint256 cacheMissBytesUsed;
@@ -55,14 +55,14 @@ contract FilBeam is Ownable {
         _;
     }
 
-    function reportUsageRollup(uint256 dataSetId, uint256 newEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
+    function recordUsageRollup(uint256 dataSetId, uint256 toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
         external
         onlyFilBeamController
     {
-        _reportUsageRollup(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
+        _recordUsageRollup(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
-    function reportUsageRollupBatch(
+    function recordUsageRollupBatch(
         uint256[] calldata dataSetIds,
         uint256[] calldata epochs,
         uint256[] calldata cdnBytesUsed,
@@ -74,24 +74,24 @@ contract FilBeam is Ownable {
         }
 
         for (uint256 i = 0; i < length; i++) {
-            _reportUsageRollup(dataSetIds[i], epochs[i], cdnBytesUsed[i], cacheMissBytesUsed[i]);
+            _recordUsageRollup(dataSetIds[i], epochs[i], cdnBytesUsed[i], cacheMissBytesUsed[i]);
         }
     }
 
-    function _reportUsageRollup(uint256 dataSetId, uint256 newEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
+    function _recordUsageRollup(uint256 dataSetId, uint256 toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
         internal
     {
-        if (newEpoch == 0) revert InvalidEpoch();
+        if (toEpoch == 0) revert InvalidEpoch();
 
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (newEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
+        if (toEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
 
         usage.cdnBytesUsed += cdnBytesUsed;
         usage.cacheMissBytesUsed += cacheMissBytesUsed;
-        usage.maxReportedEpoch = newEpoch;
+        usage.maxReportedEpoch = toEpoch;
 
-        emit UsageReported(dataSetId, newEpoch, cdnBytesUsed, cacheMissBytesUsed);
+        emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
     function settleCDNPaymentRail(uint256 dataSetId) external {
