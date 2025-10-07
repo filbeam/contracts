@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import "../src/FilBeamOperator.sol";
+import "../src/interfaces/IFWSS.sol";
 
 interface IERC20 {
     function decimals() external view returns (uint8);
@@ -12,10 +13,11 @@ interface IERC20 {
  * @title DeployFilBeamOperator
  * @dev Deploys FilBeamOperator contract with USDFC token integration
  *
+ * The USDFC token address is automatically read from the FWSS contract.
+ *
  * Required Environment Variables:
  * - PRIVATE_KEY: Deployer's private key (deployer becomes initial owner)
  * - FWSS_ADDRESS: Address of the FWSS contract
- * - USDFC_ADDRESS: Address of the USDFC ERC20 token contract
  * - CDN_PRICE_USD_PER_TIB: CDN price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB)
  * - CACHE_MISS_PRICE_USD_PER_TIB: Cache miss price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1575 for $15.75/TiB)
  * - PRICE_DECIMALS: Number of decimal places for price inputs (e.g., 2 for cents, 0 for whole dollars)
@@ -24,7 +26,7 @@ interface IERC20 {
  * - FILBEAM_CONTROLLER: Address authorized to report usage (defaults to deployer)
  *
  * Example usage:
- * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... USDFC_ADDRESS=0xdef... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeam.s.sol --broadcast
+ * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeamOperator.s.sol --broadcast
  */
 contract DeployFilBeamOperator is Script {
     // Constants for conversion
@@ -36,7 +38,10 @@ contract DeployFilBeamOperator is Script {
 
         // Get environment variables
         address fwssAddress = vm.envAddress("FWSS_ADDRESS");
-        address usdfcAddress = vm.envAddress("USDFC_ADDRESS");
+
+        // Query FWSS contract for USDFC token address
+        IFWSS fwssContract = IFWSS(fwssAddress);
+        address usdfcAddress = fwssContract.usdfcTokenAddress();
 
         // Get filBeamOperatorController address (defaults to deployer if not set)
         address filBeamOperatorController = vm.envOr("FILBEAM_CONTROLLER", deployer);

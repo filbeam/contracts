@@ -5,4 +5,6 @@ interface IFWSS {
     function settleFilBeamPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount) external;
 
     function terminateCDNPaymentRails(uint256 dataSetId) external;
+
+    function usdfcTokenAddress() external view returns (address);
 }
