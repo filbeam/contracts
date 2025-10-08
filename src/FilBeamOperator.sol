@@ -37,6 +37,11 @@ contract FilBeamOperator is Ownable {
 
     event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
 
+    /// @notice Initializes the FilBeamOperator contract
+    /// @param fwssAddress Address of the FWSS contract
+    /// @param _cdnRatePerByte CDN rate per byte in smallest token units
+    /// @param _cacheMissRatePerByte Cache miss rate per byte in smallest token units
+    /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
     constructor(
         address fwssAddress,
         uint256 _cdnRatePerByte,
@@ -58,6 +63,12 @@ contract FilBeamOperator is Ownable {
         _;
     }
 
+    /// @notice Records usage rollups for multiple data sets
+    /// @dev Can only be called by the FilBeam operator controller
+    /// @param dataSetIds Array of data set IDs
+    /// @param epochs Array of epoch numbers
+    /// @param cdnBytesUsed Array of CDN egress bytes used for each data set
+    /// @param cacheMissBytesUsed Array of cache miss egress bytes used for each data set
     function recordUsageRollups(
         uint256[] calldata dataSetIds,
         uint256[] calldata epochs,
@@ -74,6 +85,11 @@ contract FilBeamOperator is Ownable {
         }
     }
 
+    /// @dev Internal function to record usage for a single data set
+    /// @param dataSetId The data set ID
+    /// @param toEpoch The epoch number to record usage for
+    /// @param cdnBytesUsed CDN egress bytes used
+    /// @param cacheMissBytesUsed Cache miss egress bytes used
     function _recordUsageRollup(uint256 dataSetId, uint256 toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)
         internal
     {
@@ -94,12 +110,17 @@ contract FilBeamOperator is Ownable {
         emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
+    /// @notice Settles CDN payment rails for multiple data sets
+    /// @dev Anyone can call this function to trigger settlement
+    /// @param dataSetIds Array of data set IDs to settle
     function settleCDNPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
             _settleCDNPaymentRail(dataSetIds[i]);
         }
     }
 
+    /// @dev Internal function to settle CDN payment rail for a single data set
+    /// @param dataSetId The data set ID to settle
     function _settleCDNPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
@@ -120,12 +141,17 @@ contract FilBeamOperator is Ownable {
         emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
     }
 
+    /// @notice Settles cache miss payment rails for multiple data sets
+    /// @dev Anyone can call this function to trigger settlement
+    /// @param dataSetIds Array of data set IDs to settle
     function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
             _settleCacheMissPaymentRail(dataSetIds[i]);
         }
     }
 
+    /// @dev Internal function to settle cache miss payment rail for a single data set
+    /// @param dataSetId The data set ID to settle
     function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
@@ -146,12 +172,18 @@ contract FilBeamOperator is Ownable {
         emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
     }
 
+    /// @notice Terminates CDN payment rails for a data set
+    /// @dev Can only be called by the FilBeam operator controller
+    /// @param dataSetId The data set ID to terminate payment rails for
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
         fwss.terminateCDNPaymentRails(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
     }
 
+    /// @notice Updates the FilBeamOperator controller address
+    /// @dev Can only be called by the contract owner
+    /// @param _filBeamOperatorController New controller address
     function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner {
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
@@ -161,6 +193,9 @@ contract FilBeamOperator is Ownable {
         emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
     }
 
+    /// @notice Updates the CDN rate per byte
+    /// @dev Can only be called by the contract owner. Rate must be greater than zero.
+    /// @param _cdnRatePerByte New CDN rate per byte in smallest token units
     function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner {
         if (_cdnRatePerByte == 0) revert InvalidRate();
 
@@ -170,6 +205,9 @@ contract FilBeamOperator is Ownable {
         emit CDNRateUpdated(oldRate, _cdnRatePerByte);
     }
 
+    /// @notice Updates the cache miss rate per byte
+    /// @dev Can only be called by the contract owner. Rate must be greater than zero.
+    /// @param _cacheMissRatePerByte New cache miss rate per byte in smallest token units
     function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwner {
         if (_cacheMissRatePerByte == 0) revert InvalidRate();
 
@@ -179,6 +217,13 @@ contract FilBeamOperator is Ownable {
         emit CacheMissRateUpdated(oldRate, _cacheMissRatePerByte);
     }
 
+    /// @notice Retrieves usage data for a specific data set
+    /// @param dataSetId The data set ID to query
+    /// @return cdnAmount Accumulated CDN amount pending settlement
+    /// @return cacheMissAmount Accumulated cache miss amount pending settlement
+    /// @return maxReportedEpoch The highest epoch number reported for this data set
+    /// @return lastCDNSettlementEpoch_ The last epoch for which CDN payment was settled
+    /// @return lastCacheMissSettlementEpoch_ The last epoch for which cache miss payment was settled
     function getDataSetUsage(uint256 dataSetId)
         external
         view
