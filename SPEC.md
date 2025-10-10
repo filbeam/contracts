@@ -126,32 +126,15 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Update the authorized address for usage reporting and payment rail termination
 - **Events**: Emits `FilBeamOperatorControllerUpdated` event
 
-#### Rate Management
-**Method**: `setCDNRatePerByte(uint256 _cdnRatePerByte)`
-
-- **Access**: Contract owner only
-- **Requirements**: Rate must be greater than zero
-- **Purpose**: Update CDN rate per byte for future settlements
-- **Events**: Emits `CDNRateUpdated` event
-
-**Method**: `setCacheMissRatePerByte(uint256 _cacheMissRatePerByte)`
-
-- **Access**: Contract owner only
-- **Requirements**: Rate must be greater than zero
-- **Purpose**: Update cache-miss rate per byte for future settlements
-- **Events**: Emits `CacheMissRateUpdated` event
-
 #### Events
 - `UsageReported(uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
 - `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
 - `FilBeamOperatorControllerUpdated(address indexed oldController, address indexed newController)`
-- `CDNRateUpdated(uint256 oldRate, uint256 newRate)`
-- `CacheMissRateUpdated(uint256 oldRate, uint256 newRate)`
 
 #### Access Control
-- **Owner**: Address authorized to manage contract ownership, set FilBeamOperator controller, and update rates
+- **Owner**: Address authorized to manage contract ownership and set FilBeamOperator controller
 - **FilBeamOperator Controller**: Address authorized to report usage and terminate payment rails
 
 #### Error Conditions
@@ -178,10 +161,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 ### Key Implementation Features
 
 #### Rate-Based Settlement
-- Configurable rates per byte for both CDN and cache-miss usage
+- Immutable rates per byte for both CDN and cache-miss usage set at contract deployment
 - Settlement amounts calculated at report time as: `usage * rate`
-- Rates set at contract deployment and can be updated by owner via `setCDNRatePerByte` and `setCacheMissRatePerByte`
-- Rate changes only affect future usage reports, not accumulated amounts
+- Rates cannot be changed after deployment, ensuring predictable pricing
 
 #### Independent Settlement Rails
 - CDN and cache-miss settlements operate independently

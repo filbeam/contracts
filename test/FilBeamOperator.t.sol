@@ -31,10 +31,6 @@ contract FilBeamOperatorTest is Test {
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
 
-    event CDNRateUpdated(uint256 oldRate, uint256 newRate);
-
-    event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
-
     function setUp() public {
         owner = address(this);
         filBeamOperatorController = makeAddr("filBeamOperatorController");
@@ -1042,74 +1038,5 @@ contract FilBeamOperatorTest is Test {
 
         (uint256 cdnAmount,,,,) = filBeam.getDataSetUsage(DATA_SET_ID_1);
         assertEq(cdnAmount, 1000 * CDN_RATE_PER_BYTE);
-    }
-
-    function test_SetCDNRatePerByte() public {
-        uint256 newRate = 150;
-
-        vm.expectEmit(false, false, false, true);
-        emit CDNRateUpdated(CDN_RATE_PER_BYTE, newRate);
-
-        filBeam.setCDNRatePerByte(newRate);
-
-        assertEq(filBeam.cdnRatePerByte(), newRate);
-    }
-
-    function test_SetCDNRatePerByteRevertUnauthorized() public {
-        uint256 newRate = 150;
-
-        vm.prank(user1);
-        vm.expectRevert();
-        filBeam.setCDNRatePerByte(newRate);
-    }
-
-    function test_SetCDNRatePerByteRevertZeroRate() public {
-        vm.expectRevert(InvalidRate.selector);
-        filBeam.setCDNRatePerByte(0);
-    }
-
-    function test_SetCacheMissRatePerByte() public {
-        uint256 newRate = 250;
-
-        vm.expectEmit(false, false, false, true);
-        emit CacheMissRateUpdated(CACHE_MISS_RATE_PER_BYTE, newRate);
-
-        filBeam.setCacheMissRatePerByte(newRate);
-
-        assertEq(filBeam.cacheMissRatePerByte(), newRate);
-    }
-
-    function test_SetCacheMissRatePerByteRevertUnauthorized() public {
-        uint256 newRate = 250;
-
-        vm.prank(user1);
-        vm.expectRevert();
-        filBeam.setCacheMissRatePerByte(newRate);
-    }
-
-    function test_SetCacheMissRatePerByteRevertZeroRate() public {
-        vm.expectRevert(InvalidRate.selector);
-        filBeam.setCacheMissRatePerByte(0);
-    }
-
-    function test_RateUpdateAffectsNewSettlements() public {
-        vm.prank(filBeamOperatorController);
-        filBeam.recordUsageRollups(
-            _singleUint256Array(DATA_SET_ID_1),
-            _singleUint256Array(1),
-            _singleUint256Array(1000),
-            _singleUint256Array(500)
-        );
-
-        filBeam.setCDNRatePerByte(150);
-        filBeam.setCacheMissRatePerByte(250);
-
-        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 settledCdnAmount1,,) = mockFWSS.getSettlement(0);
-        assertEq(settledCdnAmount1, 1000 * CDN_RATE_PER_BYTE);
-
-        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (,, uint256 settledCacheMissAmount2,) = mockFWSS.getSettlement(1);
-        assertEq(settledCacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
     }
 }

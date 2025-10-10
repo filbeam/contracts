@@ -101,12 +101,6 @@ function transferOwnership(address newOwner) external onlyOwner
 function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner
 ```
 
-**Rate Management**
-```solidity
-function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner
-function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwner
-```
-
 ### View Functions
 
 **Dataset Information**
@@ -129,8 +123,8 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 
 ### Pricing Model
 - **Usage-Based**: Calculated as `usage_bytes * rate_per_byte` at report time
-- **Configurable Rates**: Owner can update rates via `setCDNRatePerByte` and `setCacheMissRatePerByte`
-- **Rate Changes**: Rate changes only affect future usage reports, not accumulated non-settled usage amounts
+- **Immutable Rates**: Rates are set at deployment and cannot be changed, ensuring predictable pricing
+- **Transparent Pricing**: All users can view the fixed rates on-chain
 
 ### Rail Settlement 
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately

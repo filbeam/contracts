@@ -15,8 +15,8 @@ contract FilBeamOperator is Ownable {
     }
 
     IFWSS public fwss;
-    uint256 public cdnRatePerByte;
-    uint256 public cacheMissRatePerByte;
+    uint256 public immutable cdnRatePerByte;
+    uint256 public immutable cacheMissRatePerByte;
     address public filBeamOperatorController;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
@@ -32,10 +32,6 @@ contract FilBeamOperator is Ownable {
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
-
-    event CDNRateUpdated(uint256 oldRate, uint256 newRate);
-
-    event CacheMissRateUpdated(uint256 oldRate, uint256 newRate);
 
     /// @notice Initializes the FilBeamOperator contract
     /// @param fwssAddress Address of the FWSS contract
@@ -191,30 +187,6 @@ contract FilBeamOperator is Ownable {
         filBeamOperatorController = _filBeamOperatorController;
 
         emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
-    }
-
-    /// @notice Updates the CDN rate per byte
-    /// @dev Can only be called by the contract owner. Rate must be greater than zero.
-    /// @param _cdnRatePerByte New CDN rate per byte in smallest token units
-    function setCDNRatePerByte(uint256 _cdnRatePerByte) external onlyOwner {
-        if (_cdnRatePerByte == 0) revert InvalidRate();
-
-        uint256 oldRate = cdnRatePerByte;
-        cdnRatePerByte = _cdnRatePerByte;
-
-        emit CDNRateUpdated(oldRate, _cdnRatePerByte);
-    }
-
-    /// @notice Updates the cache miss rate per byte
-    /// @dev Can only be called by the contract owner. Rate must be greater than zero.
-    /// @param _cacheMissRatePerByte New cache miss rate per byte in smallest token units
-    function setCacheMissRatePerByte(uint256 _cacheMissRatePerByte) external onlyOwner {
-        if (_cacheMissRatePerByte == 0) revert InvalidRate();
-
-        uint256 oldRate = cacheMissRatePerByte;
-        cacheMissRatePerByte = _cacheMissRatePerByte;
-
-        emit CacheMissRateUpdated(oldRate, _cacheMissRatePerByte);
     }
 
     /// @notice Retrieves usage data for a specific data set
