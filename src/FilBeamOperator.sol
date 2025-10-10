@@ -120,8 +120,10 @@ contract FilBeamOperator is Ownable {
     function _settleCDNPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (usage.maxReportedEpoch == 0) revert DataSetNotInitialized();
-        if (usage.maxReportedEpoch <= usage.lastCDNSettlementEpoch) revert NoUsageToSettle();
+        // Early return if data set not initialized or no new usage to settle
+        if (usage.maxReportedEpoch == 0 || usage.maxReportedEpoch <= usage.lastCDNSettlementEpoch) {
+            return;
+        }
 
         uint256 fromEpoch = usage.lastCDNSettlementEpoch + 1;
         uint256 toEpoch = usage.maxReportedEpoch;
@@ -151,8 +153,10 @@ contract FilBeamOperator is Ownable {
     function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        if (usage.maxReportedEpoch == 0) revert DataSetNotInitialized();
-        if (usage.maxReportedEpoch <= usage.lastCacheMissSettlementEpoch) revert NoUsageToSettle();
+        // Early return if data set not initialized or no new usage to settle
+        if (usage.maxReportedEpoch == 0 || usage.maxReportedEpoch <= usage.lastCacheMissSettlementEpoch) {
+            return;
+        }
 
         uint256 fromEpoch = usage.lastCacheMissSettlementEpoch + 1;
         uint256 toEpoch = usage.maxReportedEpoch;

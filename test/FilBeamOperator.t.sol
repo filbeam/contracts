@@ -283,15 +283,16 @@ contract FilBeamOperatorTest is Test {
         assertEq(settledCacheMissAmount, 300000);
     }
 
-    function test_SettlementRevertDataSetNotInitialized() public {
-        vm.expectRevert(DataSetNotInitialized.selector);
+    function test_SettlementDataSetNotInitialized() public {
+        // Should not revert, just return early without emitting events
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-
-        vm.expectRevert(DataSetNotInitialized.selector);
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // Verify no settlements were made
+        assertEq(mockFWSS.getSettlementsCount(), 0);
     }
 
-    function test_SettlementRevertNoUsageToSettle() public {
+    function test_SettlementNoUsageToSettle() public {
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -300,14 +301,18 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
-        vm.expectRevert(NoUsageToSettle.selector);
+        // Should not revert, just return early without additional settlements
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 2);
 
-        vm.expectRevert(NoUsageToSettle.selector);
+        // Should not revert, just return early without additional settlements
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 2); // Still 2, no new settlement
     }
 
     function test_TerminateCDNPaymentRails() public {
@@ -914,23 +919,25 @@ contract FilBeamOperatorTest is Test {
         assertEq(mockFWSS.getSettlementsCount(), 0);
     }
 
-    function test_SettleCDNPaymentRailBatchRevertDataSetNotInitialized() public {
+    function test_SettleCDNPaymentRailBatchDataSetNotInitialized() public {
         uint256[] memory dataSetIds = new uint256[](1);
         dataSetIds[0] = DATA_SET_ID_1;
 
-        vm.expectRevert(DataSetNotInitialized.selector);
+        // Should not revert, just return early without settlements
         filBeam.settleCDNPaymentRails(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 0);
     }
 
-    function test_SettleCacheMissPaymentRailBatchRevertDataSetNotInitialized() public {
+    function test_SettleCacheMissPaymentRailBatchDataSetNotInitialized() public {
         uint256[] memory dataSetIds = new uint256[](1);
         dataSetIds[0] = DATA_SET_ID_1;
 
-        vm.expectRevert(DataSetNotInitialized.selector);
+        // Should not revert, just return early without settlements
         filBeam.settleCacheMissPaymentRails(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 0);
     }
 
-    function test_SettleCDNPaymentRailBatchRevertNoUsageToSettle() public {
+    function test_SettleCDNPaymentRailBatchNoUsageToSettle() public {
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -939,15 +946,17 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
         uint256[] memory dataSetIds = new uint256[](1);
         dataSetIds[0] = DATA_SET_ID_1;
 
-        vm.expectRevert(NoUsageToSettle.selector);
+        // Should not revert, just return early without new settlements
         filBeam.settleCDNPaymentRails(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
     }
 
-    function test_SettleCacheMissPaymentRailBatchRevertNoUsageToSettle() public {
+    function test_SettleCacheMissPaymentRailBatchNoUsageToSettle() public {
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -956,15 +965,45 @@ contract FilBeamOperatorTest is Test {
             _singleUint256Array(500)
         );
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
         uint256[] memory dataSetIds = new uint256[](1);
         dataSetIds[0] = DATA_SET_ID_1;
 
-        vm.expectRevert(NoUsageToSettle.selector);
+        // Should not revert, just return early without new settlements
         filBeam.settleCacheMissPaymentRails(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
     }
 
-    function test_SettlementBatchAtomicity() public {
+    function test_SilentEarlyReturnsNoEvents() public {
+        // Test 1: Uninitialized dataset should not revert or change state
+        uint256 initialSettlementCount = mockFWSS.getSettlementsCount();
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount, "Should not settle uninitialized dataset");
+
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount, "Should not settle uninitialized dataset");
+
+        // Initialize with usage
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            _singleUint256Array(DATA_SET_ID_1),
+            _singleUint256Array(1),
+            _singleUint256Array(1000),
+            _singleUint256Array(500)
+        );
+
+        // Settle once (should work)
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount + 1, "Should settle first time");
+
+        // Test 2: Already settled dataset should not create new settlements
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount + 1, "Should not settle when no new usage");
+    }
+
+    function test_SettlementBatchMixedInitialization() public {
+        // Record usage for DATA_SET_ID_1 but not DATA_SET_ID_2
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
             _singleUint256Array(DATA_SET_ID_1),
@@ -975,19 +1014,20 @@ contract FilBeamOperatorTest is Test {
 
         uint256[] memory dataSetIds = new uint256[](2);
         dataSetIds[0] = DATA_SET_ID_1;
-        dataSetIds[1] = DATA_SET_ID_2;
+        dataSetIds[1] = DATA_SET_ID_2; // Not initialized
 
-        vm.expectRevert(DataSetNotInitialized.selector);
+        // Should settle DATA_SET_ID_1 and skip DATA_SET_ID_2 without reverting
         filBeam.settleCDNPaymentRails(dataSetIds);
 
+        // Verify DATA_SET_ID_1 was settled
         (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1, uint256 lastCDNEpoch1,) =
             filBeam.getDataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 1000 * CDN_RATE_PER_BYTE);
-        assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE);
+        assertEq(cdnAmount1, 0); // Settled, so amount is 0
+        assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE); // Not settled yet
         assertEq(maxEpoch1, 1);
-        assertEq(lastCDNEpoch1, 0);
+        assertEq(lastCDNEpoch1, 1); // Updated after settlement
 
-        assertEq(mockFWSS.getSettlementsCount(), 0);
+        assertEq(mockFWSS.getSettlementsCount(), 1); // Only DATA_SET_ID_1 was settled
     }
 
     function test_SetFilBeamController() public {

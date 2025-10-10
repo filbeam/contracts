@@ -69,11 +69,12 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Only calls FWSS contract if amount > 0 (gas optimization)
   - Reset accumulated CDN amount to zero
 - **State Updates**: Update last CDN settlement epoch to max reported epoch
-- **Requirements**: Dataset must be initialized and have unreported usage
+- **Requirements**: None - gracefully skips datasets that cannot be settled
 - **Batch Processing**:
-  - Processes all settlements atomically (all succeed or all fail)
-  - Maintains independent operation per dataset
-- **Events**: Emits individual `CDNSettlement` event for each processed dataset
+  - Processes each dataset independently (non-reverting)
+  - Skips uninitialized datasets or those without new usage
+  - Continues processing even if some datasets cannot be settled
+- **Events**: Emits `CDNSettlement` event only for successfully settled datasets
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
 **Method**: `settleCacheMissPaymentRails(uint256[] dataSetIds)`
@@ -86,11 +87,12 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Only calls FWSS contract if amount > 0 (gas optimization)
   - Reset accumulated cache-miss amount to zero
 - **State Updates**: Update last cache-miss settlement epoch to max reported epoch
-- **Requirements**: Dataset must be initialized and have unreported usage
+- **Requirements**: None - gracefully skips datasets that cannot be settled
 - **Batch Processing**:
-  - Processes all settlements atomically (all succeed or all fail)
-  - Maintains independent operation per dataset
-- **Events**: Emits individual `CacheMissSettlement` event for each processed dataset
+  - Processes each dataset independently (non-reverting)
+  - Skips uninitialized datasets or those without new usage
+  - Continues processing even if some datasets cannot be settled
+- **Events**: Emits `CacheMissSettlement` event only for successfully settled datasets
 - **Independent Operation**: Can be called independently of CDN settlement
 
 #### Payment Rail Termination
@@ -140,11 +142,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 #### Error Conditions
 - `OwnableUnauthorizedAccount(address)`: Caller is not the contract owner
 - `Unauthorized()`: Caller is not the FilBeamOperator controller
-- `InvalidEpoch()`: Invalid epoch number or ordering
-- `NoUsageToSettle()`: No unreported usage available for settlement
+- `InvalidEpoch()`: Invalid epoch number or ordering (used in usage reporting)
 - `InvalidUsageAmount()`: Invalid array lengths in batch operations
-- `DataSetNotInitialized()`: Dataset has not been initialized
-- `InvalidRate()`: Invalid rate configuration (zero rates)
+- `InvalidRate()`: Invalid rate configuration (zero rates at deployment)
 - `InvalidAddress()`: Invalid address (zero address) provided
 
 ### Filecoin Warm Storage Service (FWSS) Contract Interface
