@@ -4,17 +4,17 @@ pragma solidity ^0.8.13;
 import "./interfaces/IFWSS.sol";
 import "./Errors.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {Payments} from "@filecoin-pay/Payments.sol";
 
 contract FilBeamOperator is Ownable {
     struct DataSetUsage {
         uint256 cdnAmount;
         uint256 cacheMissAmount;
         uint256 maxReportedEpoch;
-        uint256 lastCDNSettlementEpoch;
-        uint256 lastCacheMissSettlementEpoch;
     }
 
     IFWSS public fwss;
+    Payments public immutable payments;
     uint256 public immutable cdnRatePerByte;
     uint256 public immutable cacheMissRatePerByte;
     address public filBeamOperatorController;
@@ -25,9 +25,9 @@ contract FilBeamOperator is Ownable {
         uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed
     );
 
-    event CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount);
+    event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
 
-    event CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount);
+    event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
 
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
@@ -35,20 +35,24 @@ contract FilBeamOperator is Ownable {
 
     /// @notice Initializes the FilBeamOperator contract
     /// @param fwssAddress Address of the FWSS contract
+    /// @param _paymentsAddress Address of the Payments contract
     /// @param _cdnRatePerByte CDN rate per byte in smallest token units
     /// @param _cacheMissRatePerByte Cache miss rate per byte in smallest token units
     /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
     constructor(
         address fwssAddress,
+        address _paymentsAddress,
         uint256 _cdnRatePerByte,
         uint256 _cacheMissRatePerByte,
         address _filBeamOperatorController
     ) Ownable(msg.sender) {
         if (fwssAddress == address(0)) revert InvalidAddress();
+        if (_paymentsAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
         fwss = IFWSS(fwssAddress);
+        payments = Payments(_paymentsAddress);
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
         filBeamOperatorController = _filBeamOperatorController;
@@ -106,6 +110,16 @@ contract FilBeamOperator is Ownable {
         emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
+    /// @dev Internal helper to get the settleable amount based on rail lockup
+    /// @param railId The payment rail ID
+    /// @param requestedAmount The amount requested to settle
+    /// @return The amount that can be settled (limited by lockupFixed)
+    function _getSettleableAmount(uint256 railId, uint256 requestedAmount) internal view returns (uint256) {
+        Payments.RailView memory rail = payments.getRail(railId);
+        // Return the minimum of requested amount and available lockup
+        return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
+    }
+
     /// @notice Settles CDN payment rails for multiple data sets
     /// @dev Anyone can call this function to trigger settlement
     /// @param dataSetIds Array of data set IDs to settle
@@ -120,23 +134,32 @@ contract FilBeamOperator is Ownable {
     function _settleCDNPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        // Early return if data set not initialized or no new usage to settle
-        if (usage.maxReportedEpoch == 0 || usage.maxReportedEpoch <= usage.lastCDNSettlementEpoch) {
+        // Early return if data set not initialized or no usage to settle
+        if (usage.maxReportedEpoch == 0 || usage.cdnAmount == 0) {
             return;
         }
 
-        uint256 fromEpoch = usage.lastCDNSettlementEpoch + 1;
-        uint256 toEpoch = usage.maxReportedEpoch;
-        uint256 cdnAmount = usage.cdnAmount;
+        // Get rail ID from FWSS
+        IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
 
-        if (cdnAmount > 0) {
-            fwss.settleFilBeamPaymentRails(dataSetId, cdnAmount, 0);
+        // Early return if no CDN rail configured
+        if (dsInfo.cdnRailId == 0) {
+            return;
         }
 
-        usage.lastCDNSettlementEpoch = toEpoch;
-        usage.cdnAmount = 0;
+        // Get the actual amount we can settle based on rail lockup
+        uint256 amountToSettle = _getSettleableAmount(dsInfo.cdnRailId, usage.cdnAmount);
 
-        emit CDNSettlement(dataSetId, fromEpoch, toEpoch, cdnAmount);
+        // Early return if nothing can be settled (no lockup available)
+        if (amountToSettle == 0) {
+            return;
+        }
+
+        // Settle the amount and update remaining balance
+        fwss.settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
+        usage.cdnAmount -= amountToSettle;
+
+        emit CDNSettlement(dataSetId, amountToSettle);
     }
 
     /// @notice Settles cache miss payment rails for multiple data sets
@@ -153,23 +176,32 @@ contract FilBeamOperator is Ownable {
     function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        // Early return if data set not initialized or no new usage to settle
-        if (usage.maxReportedEpoch == 0 || usage.maxReportedEpoch <= usage.lastCacheMissSettlementEpoch) {
+        // Early return if data set not initialized or no usage to settle
+        if (usage.maxReportedEpoch == 0 || usage.cacheMissAmount == 0) {
             return;
         }
 
-        uint256 fromEpoch = usage.lastCacheMissSettlementEpoch + 1;
-        uint256 toEpoch = usage.maxReportedEpoch;
-        uint256 cacheMissAmount = usage.cacheMissAmount;
+        // Get rail ID from FWSS
+        IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
 
-        if (cacheMissAmount > 0) {
-            fwss.settleFilBeamPaymentRails(dataSetId, 0, cacheMissAmount);
+        // Early return if no cache miss rail configured
+        if (dsInfo.cacheMissRailId == 0) {
+            return;
         }
 
-        usage.lastCacheMissSettlementEpoch = toEpoch;
-        usage.cacheMissAmount = 0;
+        // Get the actual amount we can settle based on rail lockup
+        uint256 amountToSettle = _getSettleableAmount(dsInfo.cacheMissRailId, usage.cacheMissAmount);
 
-        emit CacheMissSettlement(dataSetId, fromEpoch, toEpoch, cacheMissAmount);
+        // Early return if nothing can be settled (no lockup available)
+        if (amountToSettle == 0) {
+            return;
+        }
+
+        // Settle the amount and update remaining balance
+        fwss.settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
+        usage.cacheMissAmount -= amountToSettle;
+
+        emit CacheMissSettlement(dataSetId, amountToSettle);
     }
 
     /// @notice Terminates CDN payment rails for a data set
@@ -191,33 +223,5 @@ contract FilBeamOperator is Ownable {
         filBeamOperatorController = _filBeamOperatorController;
 
         emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
-    }
-
-    /// @notice Retrieves usage data for a specific data set
-    /// @param dataSetId The data set ID to query
-    /// @return cdnAmount Accumulated CDN amount pending settlement
-    /// @return cacheMissAmount Accumulated cache miss amount pending settlement
-    /// @return maxReportedEpoch The highest epoch number reported for this data set
-    /// @return lastCDNSettlementEpoch_ The last epoch for which CDN payment was settled
-    /// @return lastCacheMissSettlementEpoch_ The last epoch for which cache miss payment was settled
-    function getDataSetUsage(uint256 dataSetId)
-        external
-        view
-        returns (
-            uint256 cdnAmount,
-            uint256 cacheMissAmount,
-            uint256 maxReportedEpoch,
-            uint256 lastCDNSettlementEpoch_,
-            uint256 lastCacheMissSettlementEpoch_
-        )
-    {
-        DataSetUsage storage usage = dataSetUsage[dataSetId];
-        return (
-            usage.cdnAmount,
-            usage.cacheMissAmount,
-            usage.maxReportedEpoch,
-            usage.lastCDNSettlementEpoch,
-            usage.lastCacheMissSettlementEpoch
-        );
     }
 }

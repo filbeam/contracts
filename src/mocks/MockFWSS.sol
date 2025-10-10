@@ -13,6 +13,7 @@ contract MockFWSS is IFWSS {
 
     Settlement[] public settlements;
     mapping(uint256 => bool) public terminatedDataSets;
+    mapping(uint256 => DataSetInfo) public dataSetInfos;
     address public authorizedCaller;
     address public usdfcTokenAddress;
 
@@ -70,5 +71,13 @@ contract MockFWSS is IFWSS {
     {
         Settlement storage settlement = settlements[index];
         return (settlement.dataSetId, settlement.cdnAmount, settlement.cacheMissAmount, settlement.timestamp);
+    }
+
+    function getDataSetInfo(uint256 dataSetId) external view returns (DataSetInfo memory) {
+        return dataSetInfos[dataSetId];
+    }
+
+    function setDataSetInfo(uint256 dataSetId, DataSetInfo memory info) external {
+        dataSetInfos[dataSetId] = info;
     }
 }

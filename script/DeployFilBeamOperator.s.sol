@@ -62,9 +62,13 @@ contract DeployFilBeamOperator is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
+        // Get payments address from environment (for now using a placeholder)
+        address paymentsAddress = vm.envAddress("PAYMENTS_ADDRESS");
+
         // Deploy the FilBeamOperator contract (deployer becomes owner)
-        FilBeamOperator filBeam =
-            new FilBeamOperator(fwssAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamOperatorController);
+        FilBeamOperator filBeam = new FilBeamOperator(
+            fwssAddress, paymentsAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamOperatorController
+        );
 
         vm.stopBroadcast();
 
@@ -74,6 +78,7 @@ contract DeployFilBeamOperator is Script {
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("FWSS Address:", fwssAddress);
+        console2.log("Payments Address:", paymentsAddress);
         console2.log("USDFC Address:", usdfcAddress);
         console2.log("USDFC Decimals:", usdfcDecimals);
         console2.log("Price Decimals:", priceDecimals);

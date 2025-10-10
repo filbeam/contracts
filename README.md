@@ -42,6 +42,7 @@ The FilBeamOperator contract requires the following constructor parameters:
 ```solidity
 constructor(
     address fwssAddress,           // FWSS contract address
+    address _paymentsAddress,      // Payments contract address for rail management
     uint256 _cdnRatePerByte,       // Rate per byte for CDN usage
     uint256 _cacheMissRatePerByte, // Rate per byte for cache-miss usage
     address _filBeamOperatorController      // Address authorized to report usage
@@ -56,6 +57,7 @@ Deploy the contract using Forge script:
 PRIVATE_KEY=<deployer_private_key> \
 FILBEAM_CONTROLLER=<filbeam_controller_address> \
 FWSS_ADDRESS=<fwss_contract_address> \
+PAYMENTS_ADDRESS=<payments_contract_address> \
 CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
 CACHE_MISS_PRICE_USD_PER_TIB=<cache_miss_price_usd_per_tib> \
 PRICE_DECIMALS=<price_decimals> \
@@ -125,6 +127,7 @@ function getDataSetUsage(uint256 dataSetId) external view returns (
 - **Usage-Based**: Calculated as `usage_bytes * rate_per_byte` at report time
 - **Immutable Rates**: Rates are set at deployment and cannot be changed, ensuring predictable pricing
 - **Transparent Pricing**: All users can view the fixed rates on-chain
+- **Partial Settlements**: Supports partial settlements when accumulated amount exceeds payment rail's `lockupFixed`
 
 ### Rail Settlement 
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately

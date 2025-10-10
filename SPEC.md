@@ -65,16 +65,22 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last CDN settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
-  - Use accumulated CDN amount (calculated at report time)
-  - Only calls FWSS contract if amount > 0 (gas optimization)
-  - Reset accumulated CDN amount to zero
-- **State Updates**: Update last CDN settlement epoch to max reported epoch
+  - Retrieves rail ID from FWSS DataSetInfo
+  - Fetches rail details from Payments contract to get `lockupFixed`
+  - Calculates settleable amount: `min(accumulated_amount, rail.lockupFixed)`
+  - Only calls FWSS contract if settleable amount > 0
+  - Reduces accumulated CDN amount by settled amount (may leave remainder)
+- **State Updates**:
+  - Update last CDN settlement epoch to max reported epoch
+  - Reduce accumulated amount by settled amount (not reset to zero if partial)
 - **Requirements**: None - gracefully skips datasets that cannot be settled
 - **Batch Processing**:
   - Processes each dataset independently (non-reverting)
   - Skips uninitialized datasets or those without new usage
+  - Skips datasets without valid rail configuration
   - Continues processing even if some datasets cannot be settled
-- **Events**: Emits `CDNSettlement` event only for successfully settled datasets
+- **Partial Settlement**: Supports partial settlements when `accumulated_amount > lockupFixed`
+- **Events**: Emits `CDNSettlement` event with actual settled amount (may be less than accumulated)
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
 **Method**: `settleCacheMissPaymentRails(uint256[] dataSetIds)`
@@ -83,16 +89,22 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Settles cache-miss payment rails for multiple datasets in a single transaction
 - **Calculation Period**: From last cache-miss settlement epoch + 1 to max reported epoch
 - **Settlement Logic**:
-  - Use accumulated cache-miss amount (calculated at report time)
-  - Only calls FWSS contract if amount > 0 (gas optimization)
-  - Reset accumulated cache-miss amount to zero
-- **State Updates**: Update last cache-miss settlement epoch to max reported epoch
+  - Retrieves rail ID from FWSS DataSetInfo
+  - Fetches rail details from Payments contract to get `lockupFixed`
+  - Calculates settleable amount: `min(accumulated_amount, rail.lockupFixed)`
+  - Only calls FWSS contract if settleable amount > 0
+  - Reduces accumulated cache-miss amount by settled amount (may leave remainder)
+- **State Updates**:
+  - Update last cache-miss settlement epoch to max reported epoch
+  - Reduce accumulated amount by settled amount (not reset to zero if partial)
 - **Requirements**: None - gracefully skips datasets that cannot be settled
 - **Batch Processing**:
   - Processes each dataset independently (non-reverting)
   - Skips uninitialized datasets or those without new usage
+  - Skips datasets without valid rail configuration
   - Continues processing even if some datasets cannot be settled
-- **Events**: Emits `CacheMissSettlement` event only for successfully settled datasets
+- **Partial Settlement**: Supports partial settlements when `accumulated_amount > lockupFixed`
+- **Events**: Emits `CacheMissSettlement` event with actual settled amount (may be less than accumulated)
 - **Independent Operation**: Can be called independently of CDN settlement
 
 #### Payment Rail Termination
@@ -173,10 +185,17 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 #### Amount Accumulation
 - Settlement amounts (calculated at report time) accumulate between settlements
 - Only unsettled amounts are stored in contract state
-- Settlement resets accumulated amounts for that rail
+- Settlement reduces accumulated amounts by settled amount (supports partial settlements)
 
 #### Epoch Management
 - Strict epoch ordering enforcement
 - Prevents duplicate epoch reporting
 - Supports batched reporting of multiple epochs via `recordUsageRollups` method for gas efficiency
 - Independent epoch tracking per dataset
+
+#### Payments Contract Integration
+- Integrates with external Payments contract to enforce lockup limits
+- Retrieves rail information including `lockupFixed` to determine maximum settleable amount
+- Supports partial settlements when accumulated amount exceeds available lockup
+- Gracefully handles missing or invalid rails by skipping settlement
+- Multiple settlement calls may be required to fully settle large accumulated amounts
