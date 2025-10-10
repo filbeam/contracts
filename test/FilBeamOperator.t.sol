@@ -167,8 +167,8 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_Initialize() public view {
-        assertEq(address(filBeam.fwss()), address(mockFWSS));
-        assertEq(address(filBeam.payments()), address(mockPayments));
+        assertEq(filBeam.fwssContractAddress(), address(mockFWSS));
+        assertEq(filBeam.paymentsContractAddress(), address(mockPayments));
         assertEq(filBeam.owner(), owner);
         assertEq(filBeam.filBeamOperatorController(), filBeamOperatorController);
         assertEq(filBeam.cdnRatePerByte(), CDN_RATE_PER_BYTE);

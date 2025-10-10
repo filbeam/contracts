@@ -13,8 +13,8 @@ contract FilBeamOperator is Ownable {
         uint256 maxReportedEpoch;
     }
 
-    IFWSS public fwss;
-    Payments public immutable payments;
+    address public fwssContractAddress;
+    address public immutable paymentsContractAddress;
     uint256 public immutable cdnRatePerByte;
     uint256 public immutable cacheMissRatePerByte;
     address public filBeamOperatorController;
@@ -51,8 +51,8 @@ contract FilBeamOperator is Ownable {
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
-        fwss = IFWSS(fwssAddress);
-        payments = Payments(_paymentsAddress);
+        fwssContractAddress = fwssAddress;
+        paymentsContractAddress = _paymentsAddress;
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
         filBeamOperatorController = _filBeamOperatorController;
@@ -115,7 +115,7 @@ contract FilBeamOperator is Ownable {
     /// @param requestedAmount The amount requested to settle
     /// @return The amount that can be settled (limited by lockupFixed)
     function _getSettleableAmount(uint256 railId, uint256 requestedAmount) internal view returns (uint256) {
-        Payments.RailView memory rail = payments.getRail(railId);
+        Payments.RailView memory rail = Payments(paymentsContractAddress).getRail(railId);
         // Return the minimum of requested amount and available lockup
         return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
     }
@@ -140,6 +140,7 @@ contract FilBeamOperator is Ownable {
         }
 
         // Get rail ID from FWSS
+        IFWSS fwss = IFWSS(fwssContractAddress);
         IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
 
         // Early return if no CDN rail configured
@@ -182,6 +183,7 @@ contract FilBeamOperator is Ownable {
         }
 
         // Get rail ID from FWSS
+        IFWSS fwss = IFWSS(fwssContractAddress);
         IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
 
         // Early return if no cache miss rail configured
@@ -208,7 +210,7 @@ contract FilBeamOperator is Ownable {
     /// @dev Can only be called by the FilBeam operator controller
     /// @param dataSetId The data set ID to terminate payment rails for
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
-        fwss.terminateCDNPaymentRails(dataSetId);
+        IFWSS(fwssContractAddress).terminateCDNPaymentRails(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
     }
