@@ -56,6 +56,7 @@ Deploy the contract using Forge script:
 ```bash
 PRIVATE_KEY=<deployer_private_key> \
 FILBEAM_CONTROLLER=<filbeam_controller_address> \
+PAYMENTS_ADDRESS=<filecoin_pay_contract_address> \
 FWSS_ADDRESS=<fwss_contract_address> \
 PAYMENTS_ADDRESS=<payments_contract_address> \
 CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
@@ -101,19 +102,6 @@ function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperato
 ```solidity
 function transferOwnership(address newOwner) external onlyOwner
 function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner
-```
-
-### View Functions
-
-**Dataset Information**
-```solidity
-function getDataSetUsage(uint256 dataSetId) external view returns (
-    uint256 cdnAmount,
-    uint256 cacheMissAmount,
-    uint256 maxReportedEpoch,
-    uint256 lastCDNSettlementEpoch,
-    uint256 lastCacheMissSettlementEpoch
-)
 ```
 
 ## Key Concepts
