@@ -22,7 +22,11 @@ contract FilBeamOperator is Ownable {
     mapping(uint256 => DataSetUsage) public dataSetUsage;
 
     event UsageReported(
-        uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed
+        uint256 indexed dataSetId,
+        uint256 indexed fromEpoch,
+        uint256 indexed toEpoch,
+        uint256 cdnBytesUsed,
+        uint256 cacheMissBytesUsed
     );
 
     event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
@@ -99,6 +103,8 @@ contract FilBeamOperator is Ownable {
 
         if (toEpoch <= usage.maxReportedEpoch) revert InvalidEpoch();
 
+        uint256 fromEpoch = usage.maxReportedEpoch + 1;
+
         // Calculate amounts using current rates at report time
         uint256 cdnAmount = cdnBytesUsed * cdnRatePerByte;
         uint256 cacheMissAmount = cacheMissBytesUsed * cacheMissRatePerByte;
@@ -107,7 +113,7 @@ contract FilBeamOperator is Ownable {
         usage.cacheMissAmount += cacheMissAmount;
         usage.maxReportedEpoch = toEpoch;
 
-        emit UsageReported(dataSetId, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
+        emit UsageReported(dataSetId, fromEpoch, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
     /// @dev Internal helper to get the settleable amount based on rail lockup

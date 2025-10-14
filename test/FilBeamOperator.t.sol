@@ -24,7 +24,11 @@ contract FilBeamOperatorTest is Test {
     uint256 constant CACHE_MISS_RATE_PER_BYTE = 200;
 
     event UsageReported(
-        uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed
+        uint256 indexed dataSetId,
+        uint256 indexed fromEpoch,
+        uint256 indexed toEpoch,
+        uint256 cdnBytesUsed,
+        uint256 cacheMissBytesUsed
     );
 
     event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
@@ -205,8 +209,8 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_ReportUsageRollup() public {
-        vm.expectEmit(true, true, false, true);
-        emit UsageReported(DATA_SET_ID_1, 1, 1000, 500);
+        vm.expectEmit(true, true, true, true);
+        emit UsageReported(DATA_SET_ID_1, 1, 1, 1000, 500);
 
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(
@@ -667,12 +671,12 @@ contract FilBeamOperatorTest is Test {
         cdnBytesUsed[2] = 1500;
         cacheMissBytesUsed[2] = 750;
 
-        vm.expectEmit(true, true, false, true);
-        emit UsageReported(DATA_SET_ID_1, 1, 1000, 500);
-        vm.expectEmit(true, true, false, true);
-        emit UsageReported(DATA_SET_ID_1, 2, 2000, 1000);
-        vm.expectEmit(true, true, false, true);
-        emit UsageReported(DATA_SET_ID_2, 1, 1500, 750);
+        vm.expectEmit(true, true, true, true);
+        emit UsageReported(DATA_SET_ID_1, 1, 1, 1000, 500);
+        vm.expectEmit(true, true, true, true);
+        emit UsageReported(DATA_SET_ID_1, 2, 2, 2000, 1000);
+        vm.expectEmit(true, true, true, true);
+        emit UsageReported(DATA_SET_ID_2, 1, 1, 1500, 750);
 
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(dataSetIds, epochs, cdnBytesUsed, cacheMissBytesUsed);
