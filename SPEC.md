@@ -141,7 +141,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Events**: Emits `FilBeamOperatorControllerUpdated` event
 
 #### Events
-- `UsageReported(uint256 indexed dataSetId, uint256 indexed epoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
+- `UsageReported(uint256 indexed dataSetId, uint256 indexed fromEpoch, uint256 indexed toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
 - `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
