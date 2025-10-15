@@ -75,8 +75,8 @@ forge script script/DeployFilBeamOperator.s.sol \
 
 ```solidity
 function recordUsageRollups(
+    uint256 toEpoch,
     uint256[] calldata dataSetIds,
-    uint256[] calldata epochs,
     uint256[] calldata cdnBytesUsed,
     uint256[] calldata cacheMissBytesUsed
 ) external onlyFilBeamOperatorController

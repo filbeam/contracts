@@ -69,23 +69,23 @@ contract FilBeamOperator is Ownable {
 
     /// @notice Records usage rollups for multiple data sets
     /// @dev Can only be called by the FilBeam operator controller
+    /// @param toEpoch Epoch number up to which usage is reported for all data sets
     /// @param dataSetIds Array of data set IDs
-    /// @param epochs Array of epoch numbers
     /// @param cdnBytesUsed Array of CDN egress bytes used for each data set
     /// @param cacheMissBytesUsed Array of cache miss egress bytes used for each data set
     function recordUsageRollups(
+        uint256 toEpoch,
         uint256[] calldata dataSetIds,
-        uint256[] calldata epochs,
         uint256[] calldata cdnBytesUsed,
         uint256[] calldata cacheMissBytesUsed
     ) external onlyFilBeamOperatorController {
         uint256 length = dataSetIds.length;
-        if (length != epochs.length || length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
+        if (length != cdnBytesUsed.length || length != cacheMissBytesUsed.length) {
             revert InvalidUsageAmount();
         }
 
         for (uint256 i = 0; i < length; i++) {
-            _recordUsageRollup(dataSetIds[i], epochs[i], cdnBytesUsed[i], cacheMissBytesUsed[i]);
+            _recordUsageRollup(dataSetIds[i], toEpoch, cdnBytesUsed[i], cacheMissBytesUsed[i]);
         }
     }
 

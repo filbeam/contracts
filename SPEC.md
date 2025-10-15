@@ -33,19 +33,21 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Usage Reporting
 
-**Method**: `recordUsageRollups(uint256[] dataSetIds, uint256[] epochs, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
+**Method**: `recordUsageRollups(uint256 toEpoch, uint256[] dataSetIds, uint256[] cdnBytesUsed, uint256[] cacheMissBytesUsed)`
 
 - **Access**: FilBeamOperator controller only
 - **Purpose**: Accepts multiple usage reports in a single transaction for improved gas efficiency
+- **toEpoch Parameter**: Single epoch number up to which usage is reported for all datasets in the batch
 - **Epoch Requirements**:
   - Epoch must be > 0
-  - Epoch must be greater than previously reported epochs for the dataset
+  - Epoch must be greater than previously reported epochs for each dataset
   - Each epoch can only be reported once per dataset
 - **Usage Requirements**:
   - Usage is converted to settlement amounts using current rates at report time
   - Amounts accumulate in the dataset between settlements
 - **Parameter Requirements**:
   - All arrays must have equal length
+  - All datasets in the batch report usage up to the same toEpoch
 - **Batch Processing**:
   - Processes all reports atomically (all succeed or all fail)
   - Maintains epoch ordering and validation rules per dataset
@@ -54,7 +56,7 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Initialize dataset on first report (sets maxReportedEpoch to non-zero value)
   - Calculate amounts: `cdnAmount = cdnBytesUsed * cdnRatePerByte`, `cacheMissAmount = cacheMissBytesUsed * cacheMissRatePerByte`
   - Accumulate calculated amounts
-  - Update max reported epoch
+  - Update max reported epoch to toEpoch
 - **Events**: Emits individual `UsageReported` event for each processed report (contains bytes, not amounts)
 
 #### Payment Rail Settlement
