@@ -145,10 +145,7 @@ contract DeployFilBeamDecimalPricingTest is Test {
         }
     }
 
-    function testFuzz_calculateUsdfcPerByte(uint128 scaledPrice, uint8 priceDecimals, uint8 tokenDecimals)
-        public
-        view
-    {
+    function testFuzz_calculateUsdfcPerByte(uint128 scaledPrice, uint8 priceDecimals, uint8 tokenDecimals) public view {
         // Bound inputs to reasonable ranges
         scaledPrice = uint128(bound(scaledPrice, 1, type(uint64).max)); // Reasonable price range
         priceDecimals = uint8(bound(priceDecimals, 0, 12)); // Limit to reasonable decimal range
