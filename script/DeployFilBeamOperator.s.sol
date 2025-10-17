@@ -36,8 +36,6 @@ contract DeployFilBeamOperator is Script {
     function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-
-        // Get environment variables
         address fwssAddress = vm.envAddress("FWSS_ADDRESS");
 
         // Query FWSS contract for USDFC token address
