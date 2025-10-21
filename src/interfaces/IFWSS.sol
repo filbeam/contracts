@@ -22,4 +22,6 @@ interface IFWSS {
     function terminateCDNPaymentRails(uint256 dataSetId) external;
 
     function usdfcTokenAddress() external view returns (address);
+
+    function transferFilBeamController(address newController) external;
 }

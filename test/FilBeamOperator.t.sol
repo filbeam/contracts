@@ -35,6 +35,10 @@ contract FilBeamOperatorTest is Test {
 
     event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
 
+    event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
+
+    event FilBeamControllerChanged(address indexed oldController, address indexed newController);
+
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
@@ -1278,5 +1282,154 @@ contract FilBeamOperatorTest is Test {
         (uint256 cdnAmount, uint256 cacheMissAmount,) = filBeam.dataSetUsage(dataSetId3);
         assertEq(cdnAmount, 100000, "CDN amount should still be accumulated");
         assertEq(cacheMissAmount, 100000, "Cache miss amount should still be accumulated");
+    }
+
+    // ============ Migration Tests ============
+
+    function test_TransferFwssFilBeamController_Success() public {
+        address newOperator = address(0x9999);
+
+        // Verify initial state
+        assertEq(mockFWSS.authorizedCaller(), address(filBeam), "Initial authorized caller should be current operator");
+
+        // FWSS emits FilBeamControllerChanged event first (from inside the call)
+        vm.expectEmit(true, true, false, true, address(mockFWSS));
+        emit FilBeamControllerChanged(address(filBeam), newOperator);
+
+        // Then FilBeamOperator emits FwssFilBeamControllerChanged event
+        vm.expectEmit(true, true, false, true, address(filBeam));
+        emit FwssFilBeamControllerChanged(address(filBeam), newOperator);
+
+        // Call as owner
+        vm.prank(owner);
+        filBeam.transferFwssFilBeamController(newOperator);
+
+        // Verify FWSS authorization was transferred
+        assertEq(mockFWSS.authorizedCaller(), newOperator, "FWSS authorized caller should be new operator");
+    }
+
+    function test_TransferFwssFilBeamController_RevertNonOwner() public {
+        address newOperator = address(0x9999);
+
+        // Try as non-owner (controller)
+        vm.prank(filBeamOperatorController);
+        vm.expectRevert();
+        filBeam.transferFwssFilBeamController(newOperator);
+
+        // Try as random user
+        vm.prank(user1);
+        vm.expectRevert();
+        filBeam.transferFwssFilBeamController(newOperator);
+
+        // Verify authorization wasn't changed
+        assertEq(mockFWSS.authorizedCaller(), address(filBeam), "Authorized caller should remain unchanged");
+    }
+
+    function test_TransferFwssFilBeamController_RevertZeroAddress() public {
+        // Try with zero address
+        vm.prank(owner);
+        vm.expectRevert(InvalidAddress.selector);
+        filBeam.transferFwssFilBeamController(address(0));
+
+        // Verify authorization wasn't changed
+        assertEq(mockFWSS.authorizedCaller(), address(filBeam), "Authorized caller should remain unchanged");
+    }
+
+    function test_TransferFwssFilBeamController_OldOperatorCannotCallAfterMigration() public {
+        address newOperator = address(0x9999);
+
+        // First record some usage to verify old operator works
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            200, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // Migrate to new operator
+        vm.prank(owner);
+        filBeam.transferFwssFilBeamController(newOperator);
+
+        // Old operator should no longer be able to call FWSS methods (settle will fail)
+        vm.expectRevert(MockFWSS.UnauthorizedCaller.selector);
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+    }
+
+    function test_TransferFwssFilBeamController_NewOperatorCanCallAfterMigration() public {
+        // Deploy a new FilBeamOperator instance to act as the new operator
+        FilBeamOperator newOperator = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
+        );
+
+        // Record usage with old operator
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            200, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // Migrate to new operator
+        vm.prank(owner);
+        filBeam.transferFwssFilBeamController(address(newOperator));
+
+        // New operator should be able to record and settle
+        vm.prank(filBeamOperatorController);
+        newOperator.recordUsageRollups(
+            300, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(2000), _singleUint256Array(1000)
+        );
+
+        // New operator can settle
+        newOperator.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // Verify settlement was successful
+        assertGt(mockFWSS.getSettlementsCount(), 0, "Settlement should have occurred");
+    }
+
+    function test_TransferFwssFilBeamController_IntegrationFlow() public {
+        // Deploy new operator
+        FilBeamOperator newOperator = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
+        );
+
+        // 1. Old operator records usage
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            200, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // 2. Settle partially with old operator (this works)
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        uint256 settlementCountBefore = mockFWSS.getSettlementsCount();
+
+        // 3. Old operator records more usage (to have accumulated amount after migration)
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            250, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(5000), _singleUint256Array(2500)
+        );
+
+        // 4. Migrate to new operator
+        vm.prank(owner);
+        filBeam.transferFwssFilBeamController(address(newOperator));
+
+        // 5. New operator records more usage
+        vm.prank(filBeamOperatorController);
+        newOperator.recordUsageRollups(
+            300, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(2000), _singleUint256Array(1000)
+        );
+
+        // 6. New operator settles
+        newOperator.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // Verify settlements occurred
+        assertGt(mockFWSS.getSettlementsCount(), settlementCountBefore, "New settlement should have occurred");
+
+        // 7. Old operator cannot settle anymore (has accumulated amount but can't settle to FWSS)
+        vm.expectRevert(MockFWSS.UnauthorizedCaller.selector);
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
     }
 }

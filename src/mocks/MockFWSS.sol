@@ -19,6 +19,7 @@ contract MockFWSS is IFWSS {
 
     event PaymentRailsSettled(uint256 indexed dataSetId, uint256 cdnAmount, uint256 cacheMissAmount);
     event PaymentRailsTerminated(uint256 indexed dataSetId);
+    event FilBeamControllerChanged(address indexed oldController, address indexed newController);
 
     error UnauthorizedCaller();
 
@@ -76,5 +77,12 @@ contract MockFWSS is IFWSS {
 
     function setDataSetInfo(uint256 dataSetId, DataSetInfo memory info) external {
         dataSetInfos[dataSetId] = info;
+    }
+
+    function transferFilBeamController(address newController) external onlyAuthorized {
+        require(newController != address(0), "Zero address");
+        address oldController = authorizedCaller;
+        authorizedCaller = newController;
+        emit FilBeamControllerChanged(oldController, newController);
     }
 }

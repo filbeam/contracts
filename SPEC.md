@@ -142,12 +142,29 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - **Purpose**: Update the authorized address for usage reporting and payment rail termination
 - **Events**: Emits `FilBeamOperatorControllerUpdated` event
 
+**Method**: `transferFwssFilBeamController(address newController)`
+
+- **Access**: Contract owner only
+- **Requirements**: New controller address cannot be zero address
+- **Purpose**: Transfer FilBeamController authorization in FWSS to a new operator contract. This is used during contract upgrades to migrate control from the current FilBeamOperator to a new FilBeamOperator instance.
+- **Functionality**: Calls `transferFilBeamController(newController)` on the FWSS contract, which will update the authorized caller in FWSS to the new operator address
+- **Events**:
+  - Emits `FwssFilBeamControllerMigrated(address indexed previousController, address indexed newController)` from FilBeamOperator
+  - FWSS will emit `FilBeamControllerChanged(address indexed oldController, address indexed newController)`
+- **Migration Flow**:
+  1. Deploy new FilBeamOperator contract
+  2. Call `transferFwssFilBeamController(newOperatorAddress)` on old operator contract
+  3. FWSS authorization transfers to new operator
+  4. Old operator can no longer call FWSS methods
+  5. New operator can now interact with FWSS
+
 #### Events
 - `UsageReported(uint256 indexed dataSetId, uint256 indexed fromEpoch, uint256 indexed toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
 - `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
 - `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
 - `FilBeamOperatorControllerUpdated(address indexed oldController, address indexed newController)`
+- `FwssFilBeamControllerMigrated(address indexed previousController, address indexed newController)`
 
 #### Access Control
 - **Owner**: Address authorized to manage contract ownership and set FilBeamOperator controller
