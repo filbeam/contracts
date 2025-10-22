@@ -49,9 +49,12 @@ forge script script/DeployFilBeamOperator.s.sol \
   --verify
 
 # Expected output:
+# === FilBeamOperator Deployment Complete ===
 # FilBeamOperator deployed at: 0x...
-# Owner: <deployer_address>
-# FilBeamOperator Controller: <controller_address>
+# === Configuration ===
+# FWSS address: <fwss_address>
+# Payments address: <payments_address>
+# ...
 ```
 
 #### Step 2: Verify Deployment
@@ -172,19 +175,6 @@ function migrateDataSetUsage(
 
 This allows direct migration of accumulated usage data before transferring the FWSS controller.
 
-### Upgrade Checklist
-
-- [ ] Calculate and verify new rates
-- [ ] Deploy new FilBeamOperator contract
-- [ ] Test new contract on testnet
-- [ ] Stop usage reporting to old contract
-- [ ] Settle all pending amounts in old contract
-- [ ] Transfer FWSS controller authorization
-- [ ] Update all configurations to new contract
-- [ ] Resume operations with new contract
-- [ ] Monitor operations for stability
-- [ ] Decommission old contract references
-
 ## Rollback Procedures
 
 ### Emergency Rollback
@@ -215,14 +205,3 @@ cast send $FILBEAM_OPERATOR_ADDRESS \
 - Query logs for missing usage data
 - Manually report missing epochs if necessary
 - Verify data consistency after recovery
-
-### Rollback Checklist
-
-- [ ] Identify issue severity and scope
-- [ ] Pause all operations
-- [ ] Notify stakeholders
-- [ ] Execute rollback procedure
-- [ ] Verify system stability
-- [ ] Investigate root cause
-- [ ] Document lessons learned
-- [ ] Update procedures as needed
