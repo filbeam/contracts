@@ -95,7 +95,7 @@ cast call $FWSS_ADDRESS \
 
 ### Migration Steps
 
-#### Step 1: Deploy FilBeamOperator
+#### Step 1: Deploy New FilBeamOperator Contract
 - Deploy FilBeamOperator contract as described in the Initial Deployment section
 - Transfer FWSS controller authorization to FilBeamOperator
 
