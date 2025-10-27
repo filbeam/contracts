@@ -24,4 +24,6 @@ interface IFWSS {
     function usdfcTokenAddress() external view returns (address);
 
     function transferFilBeamController(address newController) external;
+
+    function paymentsContractAddress() external view returns (address);
 }

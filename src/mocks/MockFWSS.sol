@@ -16,6 +16,7 @@ contract MockFWSS is IFWSS {
     mapping(uint256 => DataSetInfo) public dataSetInfos;
     address public authorizedCaller;
     address public usdfcTokenAddress;
+    address public paymentsContractAddress;
 
     event PaymentRailsSettled(uint256 indexed dataSetId, uint256 cdnAmount, uint256 cacheMissAmount);
     event PaymentRailsTerminated(uint256 indexed dataSetId);
@@ -38,6 +39,10 @@ contract MockFWSS is IFWSS {
 
     function setUsdfcTokenAddress(address _usdfcTokenAddress) external {
         usdfcTokenAddress = _usdfcTokenAddress;
+    }
+
+    function setPaymentsContractAddress(address _paymentsContractAddress) external {
+        paymentsContractAddress = _paymentsContractAddress;
     }
 
     function settleFilBeamPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)
