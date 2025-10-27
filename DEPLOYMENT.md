@@ -24,7 +24,6 @@ The FilBeamOperator contract manages CDN and cache-miss usage reporting and paym
    # Required environment variables
    export PRIVATE_KEY="0x..."                    # Deployer's private key
    export FWSS_ADDRESS="0x..."                   # FWSS contract address
-   export PAYMENTS_ADDRESS="0x..."               # Payments contract address
    export FILBEAM_CONTROLLER="0x..."             # Controller address (can be multisig)
    export CDN_PRICE_USD_PER_TIB=700             # $7.00/TiB (with 2 decimals)
    export CACHE_MISS_PRICE_USD_PER_TIB=850      # $8.50/TiB (with 2 decimals)
