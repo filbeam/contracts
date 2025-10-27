@@ -40,7 +40,7 @@ contract DeployFilBeamOperator is Script {
         // Query FWSS contract for USDFC token address and payments contract address
         IFWSS fwssContract = IFWSS(fwssAddress);
         address usdfcAddress = fwssContract.usdfcTokenAddress();
-        address paymentsAddress = fwssAddress.paymentsContractAddress();
+        address paymentsAddress = fwssContract.paymentsContractAddress();
 
         // Get filBeamOperatorController address (defaults to deployer if not set)
         address filBeamOperatorController = vm.envOr("FILBEAM_CONTROLLER", deployer);
