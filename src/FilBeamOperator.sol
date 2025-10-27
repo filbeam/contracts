@@ -129,8 +129,7 @@ contract FilBeamOperator is Ownable {
 
         emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
     }
-    
-    
+
     /// @notice Transfers the FilBeamController authorization in FWSS to a new operator
     /// @dev Can only be called by the contract owner. This is used during contract upgrades
     /// to transfer control from the current operator to a new operator contract.
