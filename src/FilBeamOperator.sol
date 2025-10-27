@@ -91,6 +91,59 @@ contract FilBeamOperator is Ownable {
         }
     }
 
+    /// @notice Settles CDN payment rails for multiple data sets
+    /// @dev Anyone can call this function to trigger settlement
+    /// @param dataSetIds Array of data set IDs to settle
+    function settleCDNPaymentRails(uint256[] calldata dataSetIds) external {
+        for (uint256 i = 0; i < dataSetIds.length; i++) {
+            _settlePaymentRail(dataSetIds[i], true);
+        }
+    }
+
+    /// @notice Settles cache miss payment rails for multiple data sets
+    /// @dev Anyone can call this function to trigger settlement
+    /// @param dataSetIds Array of data set IDs to settle
+    function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external {
+        for (uint256 i = 0; i < dataSetIds.length; i++) {
+            _settlePaymentRail(dataSetIds[i], false);
+        }
+    }
+
+    /// @notice Terminates CDN payment rails for a data set
+    /// @dev Can only be called by the FilBeam operator controller
+    /// @param dataSetId The data set ID to terminate payment rails for
+    function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
+        IFWSS(fwssContractAddress).terminateCDNPaymentRails(dataSetId);
+
+        emit PaymentRailsTerminated(dataSetId);
+    }
+
+    /// @notice Updates the FilBeamOperator controller address
+    /// @dev Can only be called by the contract owner
+    /// @param _filBeamOperatorController New controller address
+    function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner {
+        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
+
+        address oldController = filBeamOperatorController;
+        filBeamOperatorController = _filBeamOperatorController;
+
+        emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
+    }
+    
+    
+    /// @notice Transfers the FilBeamController authorization in FWSS to a new operator
+    /// @dev Can only be called by the contract owner. This is used during contract upgrades
+    /// to transfer control from the current operator to a new operator contract.
+    /// @param newController Address of the new FilBeamOperator contract
+    function transferFwssFilBeamController(address newController) external onlyOwner {
+        if (newController == address(0)) revert InvalidAddress();
+
+        // Transfer the controller authorization in FWSS to the new operator
+        IFWSS(fwssContractAddress).transferFilBeamController(newController);
+
+        emit FwssFilBeamControllerChanged(address(this), newController);
+    }
+
     /// @dev Internal function to record usage for a single data set
     /// @param dataSetId The data set ID
     /// @param toEpoch The epoch number to record usage for
@@ -118,6 +171,49 @@ contract FilBeamOperator is Ownable {
         emit UsageReported(dataSetId, fromEpoch, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
+    /// @dev Internal function to settle a payment rail (CDN or cache miss)
+    /// @param dataSetId The data set ID to settle
+    /// @param isCDN True for CDN rail, false for cache miss rail
+    function _settlePaymentRail(uint256 dataSetId, bool isCDN) internal {
+        DataSetUsage storage usage = dataSetUsage[dataSetId];
+
+        // Get the appropriate amount based on rail type
+        uint256 amount = isCDN ? usage.cdnAmount : usage.cacheMissAmount;
+
+        // Early return if data set not initialized or no usage to settle
+        if (usage.maxReportedEpoch == 0 || amount == 0) {
+            return;
+        }
+
+        // Get rail ID from FWSS
+        IFWSS.DataSetInfo memory dsInfo = IFWSS(fwssContractAddress).getDataSetInfo(dataSetId);
+        uint256 railId = isCDN ? dsInfo.cdnRailId : dsInfo.cacheMissRailId;
+
+        // Early return if no rail configured
+        if (railId == 0) {
+            return;
+        }
+
+        // Get the actual amount we can settle based on rail lockup
+        uint256 amountToSettle = _getSettleableAmount(railId, amount);
+
+        // Early return if nothing can be settled (no lockup available)
+        if (amountToSettle == 0) {
+            return;
+        }
+
+        // Settle the amount through FWSS
+        if (isCDN) {
+            IFWSS(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
+            usage.cdnAmount -= amountToSettle;
+            emit CDNSettlement(dataSetId, amountToSettle);
+        } else {
+            IFWSS(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
+            usage.cacheMissAmount -= amountToSettle;
+            emit CacheMissSettlement(dataSetId, amountToSettle);
+        }
+    }
+
     /// @dev Internal helper to get the settleable amount based on rail lockup
     /// @param railId The payment rail ID
     /// @param requestedAmount The amount requested to settle
@@ -126,125 +222,5 @@ contract FilBeamOperator is Ownable {
         Payments.RailView memory rail = Payments(paymentsContractAddress).getRail(railId);
         // Return the minimum of requested amount and available lockup
         return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
-    }
-
-    /// @notice Settles CDN payment rails for multiple data sets
-    /// @dev Anyone can call this function to trigger settlement
-    /// @param dataSetIds Array of data set IDs to settle
-    function settleCDNPaymentRails(uint256[] calldata dataSetIds) external {
-        for (uint256 i = 0; i < dataSetIds.length; i++) {
-            _settleCDNPaymentRail(dataSetIds[i]);
-        }
-    }
-
-    /// @dev Internal function to settle CDN payment rail for a single data set
-    /// @param dataSetId The data set ID to settle
-    function _settleCDNPaymentRail(uint256 dataSetId) internal {
-        DataSetUsage storage usage = dataSetUsage[dataSetId];
-
-        // Early return if data set not initialized or no usage to settle
-        if (usage.maxReportedEpoch == 0 || usage.cdnAmount == 0) {
-            return;
-        }
-
-        // Get rail ID from FWSS
-        IFWSS fwss = IFWSS(fwssContractAddress);
-        IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
-
-        // Early return if no CDN rail configured
-        if (dsInfo.cdnRailId == 0) {
-            return;
-        }
-
-        // Get the actual amount we can settle based on rail lockup
-        uint256 amountToSettle = _getSettleableAmount(dsInfo.cdnRailId, usage.cdnAmount);
-
-        // Early return if nothing can be settled (no lockup available)
-        if (amountToSettle == 0) {
-            return;
-        }
-
-        // Settle the amount and update remaining balance
-        fwss.settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
-        usage.cdnAmount -= amountToSettle;
-
-        emit CDNSettlement(dataSetId, amountToSettle);
-    }
-
-    /// @notice Settles cache miss payment rails for multiple data sets
-    /// @dev Anyone can call this function to trigger settlement
-    /// @param dataSetIds Array of data set IDs to settle
-    function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external {
-        for (uint256 i = 0; i < dataSetIds.length; i++) {
-            _settleCacheMissPaymentRail(dataSetIds[i]);
-        }
-    }
-
-    /// @dev Internal function to settle cache miss payment rail for a single data set
-    /// @param dataSetId The data set ID to settle
-    function _settleCacheMissPaymentRail(uint256 dataSetId) internal {
-        DataSetUsage storage usage = dataSetUsage[dataSetId];
-
-        // Early return if data set not initialized or no usage to settle
-        if (usage.maxReportedEpoch == 0 || usage.cacheMissAmount == 0) {
-            return;
-        }
-
-        // Get rail ID from FWSS
-        IFWSS fwss = IFWSS(fwssContractAddress);
-        IFWSS.DataSetInfo memory dsInfo = fwss.getDataSetInfo(dataSetId);
-
-        // Early return if no cache miss rail configured
-        if (dsInfo.cacheMissRailId == 0) {
-            return;
-        }
-
-        // Get the actual amount we can settle based on rail lockup
-        uint256 amountToSettle = _getSettleableAmount(dsInfo.cacheMissRailId, usage.cacheMissAmount);
-
-        // Early return if nothing can be settled (no lockup available)
-        if (amountToSettle == 0) {
-            return;
-        }
-
-        // Settle the amount and update remaining balance
-        fwss.settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
-        usage.cacheMissAmount -= amountToSettle;
-
-        emit CacheMissSettlement(dataSetId, amountToSettle);
-    }
-
-    /// @notice Terminates CDN payment rails for a data set
-    /// @dev Can only be called by the FilBeam operator controller
-    /// @param dataSetId The data set ID to terminate payment rails for
-    function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
-        IFWSS(fwssContractAddress).terminateCDNPaymentRails(dataSetId);
-
-        emit PaymentRailsTerminated(dataSetId);
-    }
-
-    /// @notice Updates the FilBeamOperator controller address
-    /// @dev Can only be called by the contract owner
-    /// @param _filBeamOperatorController New controller address
-    function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner {
-        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
-
-        address oldController = filBeamOperatorController;
-        filBeamOperatorController = _filBeamOperatorController;
-
-        emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
-    }
-
-    /// @notice Transfers the FilBeamController authorization in FWSS to a new operator
-    /// @dev Can only be called by the contract owner. This is used during contract upgrades
-    /// to transfer control from the current operator to a new operator contract.
-    /// @param newController Address of the new FilBeamOperator contract
-    function transferFwssFilBeamController(address newController) external onlyOwner {
-        if (newController == address(0)) revert InvalidAddress();
-
-        // Transfer the controller authorization in FWSS to the new operator
-        IFWSS(fwssContractAddress).transferFilBeamController(newController);
-
-        emit FwssFilBeamControllerChanged(address(this), newController);
     }
 }
