@@ -39,7 +39,7 @@ The FilBeamOperator contract manages CDN and cache-miss usage reporting and paym
 
 ### Deployment Steps
 
-#### Step 1: Deploy FilBeamOperator Contract
+#### Step 1: Deploy New FilBeamOperator Contract
 
 ```bash
 # Deploy the contract
@@ -100,7 +100,7 @@ cast call $FWSS_ADDRESS \
 - Transfer FWSS controller authorization to FilBeamOperator
 
 #### Step 2: Update Off-Chain Components
-- Update or FilBeam controller address (`FILBEAM_CONTROLLER_ADDRESS_PRIVATE_KEY` secret)
+- Update the FilBeam controller address (`FILBEAM_CONTROLLER_PRIVATE_KEY` secret)
 - Update all worker configurations to point to FilBeamOperator contract address (`FILBEAM_CONTRACT_ADDRESS` environment variable)
 
 #### Step 3: Verify Operations
@@ -159,7 +159,7 @@ cast send $FILBEAM_OPERATOR_V1_ADDRESS \
 
 ### Alternative: Data Migration
 
-If accumulated usage cannot be settled naturally, consider implementing a migration utility in v2 contract:
+If accumulated usage cannot be settled naturally, consider implementing a migration utility in v2 contract which would allow us to migrate the usage amounts calculated under the different rate:
 
 ```solidity
 // Add to FilBeamOperator v2
@@ -173,7 +173,7 @@ function migrateDataSetUsage(
 }
 ```
 
-This allows direct migration of accumulated usage data before transferring the FWSS controller.
+This allows direct migration of accumulated usage amounts before transferring the FWSS controller.
 
 ## Rollback Procedures
 
