@@ -37,6 +37,8 @@ contract FilBeamOperator is Ownable {
 
     event FilBeamControllerUpdated(address indexed oldController, address indexed newController);
 
+    event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
+
     /// @notice Initializes the FilBeamOperator contract
     /// @param fwssAddress Address of the FWSS contract
     /// @param _paymentsAddress Address of the Payments contract
@@ -126,6 +128,19 @@ contract FilBeamOperator is Ownable {
         filBeamOperatorController = _filBeamOperatorController;
 
         emit FilBeamControllerUpdated(oldController, _filBeamOperatorController);
+    }
+
+    /// @notice Transfers the FilBeamController authorization in FWSS to a new operator
+    /// @dev Can only be called by the contract owner. This is used during contract upgrades
+    /// to transfer control from the current operator to a new operator contract.
+    /// @param newController Address of the new FilBeamOperator contract
+    function transferFwssFilBeamController(address newController) external onlyOwner {
+        if (newController == address(0)) revert InvalidAddress();
+
+        // Transfer the controller authorization in FWSS to the new operator
+        IFWSS(fwssContractAddress).transferFilBeamController(newController);
+
+        emit FwssFilBeamControllerChanged(address(this), newController);
     }
 
     /// @dev Internal function to record usage for a single data set
