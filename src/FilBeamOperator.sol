@@ -13,7 +13,7 @@ contract FilBeamOperator is Ownable {
         uint256 maxReportedEpoch;
     }
 
-    address public fwssContractAddress;
+    address public immutable fwssContractAddress;
     address public immutable paymentsContractAddress;
     uint256 public immutable cdnRatePerByte;
     uint256 public immutable cacheMissRatePerByte;
