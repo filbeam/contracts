@@ -21,9 +21,7 @@ interface IERC20 {
  * - CDN_PRICE_USD_PER_TIB: CDN price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB)
  * - CACHE_MISS_PRICE_USD_PER_TIB: Cache miss price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1575 for $15.75/TiB)
  * - PRICE_DECIMALS: Number of decimal places for price inputs (e.g., 2 for cents, 0 for whole dollars)
- *
- * Optional Environment Variables:
- * - FILBEAM_CONTROLLER: Address authorized to report usage (defaults to deployer)
+ * - FILBEAM_CONTROLLER: Address authorized to report usage
  *
  * Example usage:
  * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeamOperator.s.sol --broadcast
@@ -42,8 +40,8 @@ contract DeployFilBeamOperator is Script {
         address usdfcAddress = fwssContract.usdfcTokenAddress();
         address paymentsAddress = fwssContract.paymentsContractAddress();
 
-        // Get filBeamOperatorController address (defaults to deployer if not set)
-        address filBeamOperatorController = vm.envOr("FILBEAM_CONTROLLER", deployer);
+        // Get filBeamOperatorController address
+        address filBeamOperatorController = vm.envAddress("FILBEAM_CONTROLLER");
 
         // Get USD prices per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB with 2 decimals)
         uint256 cdnPriceUsdPerTibScaled = vm.envUint("CDN_PRICE_USD_PER_TIB");
