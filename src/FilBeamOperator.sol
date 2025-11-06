@@ -113,7 +113,7 @@ contract FilBeamOperator is Ownable {
     /// @dev Can only be called by the FilBeam operator controller
     /// @param dataSetId The data set ID to terminate payment rails for
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
-        IFWSS(fwssContractAddress).terminateCDNPaymentRails(dataSetId);
+        IFWSS(fwssContractAddress).terminateCDNService(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
     }

@@ -58,7 +58,7 @@ contract MockFWSS is IFWSS {
         emit PaymentRailsSettled(dataSetId, cdnAmount, cacheMissAmount);
     }
 
-    function terminateCDNPaymentRails(uint256 dataSetId) external onlyAuthorized {
+    function terminateCDNService(uint256 dataSetId) external onlyAuthorized {
         terminatedDataSets[dataSetId] = true;
         emit PaymentRailsTerminated(dataSetId);
     }
