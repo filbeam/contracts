@@ -3,7 +3,8 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import "../src/FilBeamOperator.sol";
-import "../src/interfaces/IFWSS.sol";
+import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
+import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
 
 interface IERC20 {
     function decimals() external view returns (uint8);
@@ -18,13 +19,14 @@ interface IERC20 {
  * Required Environment Variables:
  * - PRIVATE_KEY: Deployer's private key (deployer becomes initial owner)
  * - FWSS_ADDRESS: Address of the FWSS contract
+ * - FWSS_STATE_VIEW_ADDRESS: Address of the FWSS State View contract
  * - CDN_PRICE_USD_PER_TIB: CDN price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1250 for $12.50/TiB)
  * - CACHE_MISS_PRICE_USD_PER_TIB: Cache miss price in USD per TiB (scaled by PRICE_DECIMALS, e.g., 1575 for $15.75/TiB)
  * - PRICE_DECIMALS: Number of decimal places for price inputs (e.g., 2 for cents, 0 for whole dollars)
  * - FILBEAM_CONTROLLER: Address authorized to report usage
  *
  * Example usage:
- * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 forge script script/DeployFilBeamOperator.s.sol --broadcast
+ * PRIVATE_KEY=0x123... FWSS_ADDRESS=0xabc... FWSS_STATE_VIEW_ADDRESS=0xdef... CDN_PRICE_USD_PER_TIB=1250 CACHE_MISS_PRICE_USD_PER_TIB=1575 PRICE_DECIMALS=2 FILBEAM_CONTROLLER=0x789... forge script script/DeployFilBeamOperator.s.sol --broadcast
  */
 contract DeployFilBeamOperator is Script {
     // Constants for conversion
@@ -34,10 +36,11 @@ contract DeployFilBeamOperator is Script {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         address fwssAddress = vm.envAddress("FWSS_ADDRESS");
+        address fwssStateViewAddress = vm.envAddress("FWSS_STATE_VIEW_ADDRESS");
 
         // Query FWSS contract for USDFC token address and payments contract address
-        IFWSS fwssContract = IFWSS(fwssAddress);
-        address usdfcAddress = fwssContract.usdfcTokenAddress();
+        FilecoinWarmStorageService fwssContract = FilecoinWarmStorageService(fwssAddress);
+        address usdfcAddress = address(fwssContract.usdfcTokenAddress());
         address paymentsAddress = fwssContract.paymentsContractAddress();
 
         // Get filBeamOperatorController address
@@ -61,7 +64,12 @@ contract DeployFilBeamOperator is Script {
 
         // Deploy the FilBeamOperator contract (deployer becomes owner)
         FilBeamOperator filBeam = new FilBeamOperator(
-            fwssAddress, paymentsAddress, cdnRatePerByte, cacheMissRatePerByte, filBeamOperatorController
+            fwssAddress,
+            fwssStateViewAddress,
+            paymentsAddress,
+            cdnRatePerByte,
+            cacheMissRatePerByte,
+            filBeamOperatorController
         );
 
         vm.stopBroadcast();
@@ -72,6 +80,7 @@ contract DeployFilBeamOperator is Script {
         console2.log("");
         console2.log("=== Configuration ===");
         console2.log("FWSS Address:", fwssAddress);
+        console2.log("FWSS State View Address:", fwssStateViewAddress);
         console2.log("Payments Address:", paymentsAddress);
         console2.log("USDFC Address:", usdfcAddress);
         console2.log("USDFC Decimals:", usdfcDecimals);

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "./interfaces/IFWSS.sol";
 import "./Errors.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {Payments} from "@filecoin-pay/Payments.sol";
+import {FilecoinPayV1} from "@filecoin-pay/FilecoinPayV1.sol";
+import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
+import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
 
 contract FilBeamOperator is Ownable {
     struct DataSetUsage {
@@ -14,6 +15,7 @@ contract FilBeamOperator is Ownable {
     }
 
     address public immutable fwssContractAddress;
+    address public immutable fwssStateViewContractAddress;
     address public immutable paymentsContractAddress;
     uint256 public immutable cdnRatePerByte;
     uint256 public immutable cacheMissRatePerByte;
@@ -40,24 +42,28 @@ contract FilBeamOperator is Ownable {
     event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
 
     /// @notice Initializes the FilBeamOperator contract
-    /// @param fwssAddress Address of the FWSS contract
+    /// @param _fwssAddress Address of the FWSS contract
+    /// @param _fwssStateViewAddress Address of the FWSS State View Contract
     /// @param _paymentsAddress Address of the Payments contract
     /// @param _cdnRatePerByte CDN rate per byte in smallest token units
     /// @param _cacheMissRatePerByte Cache miss rate per byte in smallest token units
     /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
     constructor(
-        address fwssAddress,
+        address _fwssAddress,
+        address _fwssStateViewAddress,
         address _paymentsAddress,
         uint256 _cdnRatePerByte,
         uint256 _cacheMissRatePerByte,
         address _filBeamOperatorController
     ) Ownable(msg.sender) {
-        if (fwssAddress == address(0)) revert InvalidAddress();
+        if (_fwssAddress == address(0)) revert InvalidAddress();
+        if (_fwssStateViewAddress == address(0)) revert InvalidAddress();
         if (_paymentsAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
 
-        fwssContractAddress = fwssAddress;
+        fwssContractAddress = _fwssAddress;
+        fwssStateViewContractAddress = _fwssStateViewAddress;
         paymentsContractAddress = _paymentsAddress;
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
@@ -113,7 +119,7 @@ contract FilBeamOperator is Ownable {
     /// @dev Can only be called by the FilBeam operator controller
     /// @param dataSetId The data set ID to terminate payment rails for
     function terminateCDNPaymentRails(uint256 dataSetId) external onlyFilBeamOperatorController {
-        IFWSS(fwssContractAddress).terminateCDNService(dataSetId);
+        FilecoinWarmStorageService(fwssContractAddress).terminateCDNService(dataSetId);
 
         emit PaymentRailsTerminated(dataSetId);
     }
@@ -138,7 +144,7 @@ contract FilBeamOperator is Ownable {
         if (newController == address(0)) revert InvalidAddress();
 
         // Transfer the controller authorization in FWSS to the new operator
-        IFWSS(fwssContractAddress).transferFilBeamController(newController);
+        FilecoinWarmStorageService(fwssContractAddress).transferFilBeamController(newController);
 
         emit FwssFilBeamControllerChanged(address(this), newController);
     }
@@ -184,8 +190,9 @@ contract FilBeamOperator is Ownable {
             return;
         }
 
-        // Get rail ID from FWSS
-        IFWSS.DataSetInfo memory dsInfo = IFWSS(fwssContractAddress).getDataSetInfo(dataSetId);
+        // Get rail ID from FWSS State View
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo =
+            FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId);
         uint256 railId = isCDN ? dsInfo.cdnRailId : dsInfo.cacheMissRailId;
 
         // Early return if no rail configured
@@ -203,11 +210,11 @@ contract FilBeamOperator is Ownable {
 
         // Settle the amount through FWSS
         if (isCDN) {
-            IFWSS(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
+            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
             usage.cdnAmount -= amountToSettle;
             emit CDNSettlement(dataSetId, amountToSettle);
         } else {
-            IFWSS(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
+            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
             usage.cacheMissAmount -= amountToSettle;
             emit CacheMissSettlement(dataSetId, amountToSettle);
         }
@@ -218,7 +225,7 @@ contract FilBeamOperator is Ownable {
     /// @param requestedAmount The amount requested to settle
     /// @return The amount that can be settled (limited by lockupFixed)
     function _getSettleableAmount(uint256 railId, uint256 requestedAmount) internal view returns (uint256) {
-        Payments.RailView memory rail = Payments(paymentsContractAddress).getRail(railId);
+        FilecoinPayV1.RailView memory rail = FilecoinPayV1(paymentsContractAddress).getRail(railId);
         // Return the minimum of requested amount and available lockup
         return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
     }

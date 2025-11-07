@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import "../interfaces/IFWSS.sol";
-
-contract MockFWSS is IFWSS {
+contract MockFWSS {
     struct Settlement {
         uint256 dataSetId;
         uint256 cdnAmount;
@@ -13,7 +11,6 @@ contract MockFWSS is IFWSS {
 
     Settlement[] public settlements;
     mapping(uint256 => bool) public terminatedDataSets;
-    mapping(uint256 => DataSetInfo) public dataSetInfos;
     address public authorizedCaller;
     address public usdfcTokenAddress;
     address public paymentsContractAddress;
@@ -74,14 +71,6 @@ contract MockFWSS is IFWSS {
     {
         Settlement storage settlement = settlements[index];
         return (settlement.dataSetId, settlement.cdnAmount, settlement.cacheMissAmount, settlement.timestamp);
-    }
-
-    function getDataSetInfo(uint256 dataSetId) external view returns (DataSetInfo memory) {
-        return dataSetInfos[dataSetId];
-    }
-
-    function setDataSetInfo(uint256 dataSetId, DataSetInfo memory info) external {
-        dataSetInfos[dataSetId] = info;
     }
 
     function transferFilBeamController(address newController) external onlyAuthorized {
