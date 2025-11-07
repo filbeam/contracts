@@ -15,6 +15,7 @@ optimizer_runs = 200
 remappings = [
     '@filecoin-pay/=lib/filecoin-pay/src/',
     '@filecoin-services/=lib/filecoin-services/service_contracts/src/',
+     # additional remappings required by filecoin-services dependency
     '@pdp/=lib/filecoin-services/service_contracts/lib/pdp/src/',
     '@session-key-registry/=lib/filecoin-services/service_contracts/lib/session-key-registry/src/',
     '@openzeppelin/contracts-upgradeable/=lib/filecoin-services/service_contracts/lib/openzeppelin-contracts-upgradeable/contracts/',
