@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {FilBeamOperator} from "../src/FilBeamOperator.sol";
 import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
-import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
 import {MockFWSS} from "../src/mocks/MockFWSS.sol";
 import {MockFilecoinWarmStorageServiceStateView} from "../src/mocks/MockFilecoinWarmStorageServiceStateView.sol";
 import {MockPayments} from "../src/mocks/MockPayments.sol";
