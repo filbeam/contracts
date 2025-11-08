@@ -24,8 +24,8 @@ The FilBeamOperator contract manages CDN and cache-miss usage reporting and paym
    # Required environment variables
    export PRIVATE_KEY="0x..."                    # Deployer's private key
    export FILBEAM_CONTROLLER="0x..."             # FilBeamOperator controller address
-   export FWSS_ADDRESS="0x..."                   # FWSS contract address
-   export FWSS_STATE_VIEW_ADDRESS="0x..."        # Address of the FWSS State View contract
+   export FWSS_ADDRESS="0x..."                   # FilecoinWarmStorageService Proxy contract address
+   export FWSS_STATE_VIEW_ADDRESS="0x..."        # FilecoinWarmStorageServiceStateViewcontract contract address
    export CDN_PRICE_USD_PER_TIB=700              # $7.00/TiB (with 2 decimals)
    export CACHE_MISS_PRICE_USD_PER_TIB=850       # $8.50/TiB (with 2 decimals)
    export PRICE_DECIMALS=2                       # Price decimal precision
