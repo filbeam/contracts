@@ -6,4 +6,7 @@
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "lib/filecoin-pay"]
 	path = lib/filecoin-pay
-	url = https://github.com/filozone/filecoin-pay
+	url = https://github.com/FilOzone/filecoin-pay
+[submodule "lib/filecoin-services"]
+	path = lib/filecoin-services
+	url = https://github.com/FilOzone/filecoin-services

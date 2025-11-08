@@ -3,8 +3,9 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {FilBeamOperator} from "../src/FilBeamOperator.sol";
-import {IFWSS} from "../src/interfaces/IFWSS.sol";
+import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
 import {MockFWSS} from "../src/mocks/MockFWSS.sol";
+import {MockFilecoinWarmStorageServiceStateView} from "../src/mocks/MockFilecoinWarmStorageServiceStateView.sol";
 import {MockPayments} from "../src/mocks/MockPayments.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../src/Errors.sol";
@@ -12,6 +13,7 @@ import "../src/Errors.sol";
 contract FilBeamOperatorTest is Test {
     FilBeamOperator public filBeam;
     MockFWSS public mockFWSS;
+    MockFilecoinWarmStorageServiceStateView public mockStateView;
     MockPayments public mockPayments;
     address public owner;
     address public filBeamOperatorController;
@@ -50,11 +52,13 @@ contract FilBeamOperatorTest is Test {
         user2 = makeAddr("user2");
 
         mockFWSS = new MockFWSS();
+        mockStateView = new MockFilecoinWarmStorageServiceStateView();
         mockPayments = new MockPayments();
 
         // Deploy FilBeamOperator contract (deployer becomes owner)
         filBeam = new FilBeamOperator(
             address(mockFWSS),
+            address(mockStateView),
             address(mockPayments),
             CDN_RATE_PER_BYTE,
             CACHE_MISS_RATE_PER_BYTE,
@@ -137,7 +141,7 @@ contract FilBeamOperatorTest is Test {
         mockPayments.setRail(4, cacheMissRail2);
 
         // Set up DataSetInfo for DATA_SET_ID_1
-        IFWSS.DataSetInfo memory dsInfo = IFWSS.DataSetInfo({
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo = FilecoinWarmStorageService.DataSetInfoView({
             pdpRailId: 0,
             cacheMissRailId: 2,
             cdnRailId: 1,
@@ -147,12 +151,13 @@ contract FilBeamOperatorTest is Test {
             commissionBps: 0,
             clientDataSetId: 0,
             pdpEndEpoch: 0,
-            providerId: 0
+            providerId: 0,
+            dataSetId: DATA_SET_ID_1
         });
-        mockFWSS.setDataSetInfo(DATA_SET_ID_1, dsInfo);
+        mockStateView.setDataSetInfo(DATA_SET_ID_1, dsInfo);
 
         // Set up DataSetInfo for DATA_SET_ID_2
-        IFWSS.DataSetInfo memory dsInfo2 = IFWSS.DataSetInfo({
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo2 = FilecoinWarmStorageService.DataSetInfoView({
             pdpRailId: 0,
             cacheMissRailId: 4,
             cdnRailId: 3,
@@ -162,9 +167,10 @@ contract FilBeamOperatorTest is Test {
             commissionBps: 0,
             clientDataSetId: 0,
             pdpEndEpoch: 0,
-            providerId: 0
+            providerId: 0,
+            dataSetId: DATA_SET_ID_2
         });
-        mockFWSS.setDataSetInfo(DATA_SET_ID_2, dsInfo2);
+        mockStateView.setDataSetInfo(DATA_SET_ID_2, dsInfo2);
     }
 
     // Helper functions to create single-element arrays
@@ -176,6 +182,7 @@ contract FilBeamOperatorTest is Test {
 
     function test_Initialize() public view {
         assertEq(filBeam.fwssContractAddress(), address(mockFWSS));
+        assertEq(filBeam.fwssStateViewContractAddress(), address(mockStateView));
         assertEq(filBeam.paymentsContractAddress(), address(mockPayments));
         assertEq(filBeam.owner(), owner);
         assertEq(filBeam.filBeamOperatorController(), filBeamOperatorController);
@@ -186,29 +193,66 @@ contract FilBeamOperatorTest is Test {
     function test_InitializeRevertZeroAddress() public {
         vm.expectRevert(InvalidAddress.selector);
         new FilBeamOperator(
-            address(0), address(mockPayments), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController
+            address(0),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
         );
 
         vm.expectRevert(InvalidAddress.selector);
         new FilBeamOperator(
-            address(mockFWSS), address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController
+            address(mockFWSS),
+            address(0),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
+        );
+
+        vm.expectRevert(InvalidAddress.selector);
+        new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(0),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
         );
     }
 
     function test_InitializeRevertZeroRate() public {
         vm.expectRevert(InvalidRate.selector);
         new FilBeamOperator(
-            address(mockFWSS), address(mockPayments), 0, CACHE_MISS_RATE_PER_BYTE, filBeamOperatorController
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            0,
+            CACHE_MISS_RATE_PER_BYTE,
+            filBeamOperatorController
         );
 
         vm.expectRevert(InvalidRate.selector);
-        new FilBeamOperator(address(mockFWSS), address(mockPayments), CDN_RATE_PER_BYTE, 0, filBeamOperatorController);
+        new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            0,
+            filBeamOperatorController
+        );
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
         vm.expectRevert(InvalidAddress.selector);
         new FilBeamOperator(
-            address(mockFWSS), address(mockPayments), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE, address(0)
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE,
+            address(0)
         );
     }
 
@@ -1043,7 +1087,7 @@ contract FilBeamOperatorTest is Test {
 
     function test_SettlementWithNoRailConfigured() public {
         // Set up DATA_SET_ID_2 with no rails
-        IFWSS.DataSetInfo memory dsInfo = IFWSS.DataSetInfo({
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo = FilecoinWarmStorageService.DataSetInfoView({
             pdpRailId: 0,
             cacheMissRailId: 0,
             cdnRailId: 0,
@@ -1053,9 +1097,10 @@ contract FilBeamOperatorTest is Test {
             commissionBps: 0,
             clientDataSetId: 0,
             pdpEndEpoch: 0,
-            providerId: 0
+            providerId: 0,
+            dataSetId: DATA_SET_ID_2
         });
-        mockFWSS.setDataSetInfo(DATA_SET_ID_2, dsInfo);
+        mockStateView.setDataSetInfo(DATA_SET_ID_2, dsInfo);
 
         // Record usage
         vm.prank(filBeamOperatorController);
@@ -1251,7 +1296,7 @@ contract FilBeamOperatorTest is Test {
     // Test settlement with rail ID 0 (no rail configured)
     function test_SettlementWithNoRailId() public {
         // Create a data set with no rails (rail IDs = 0)
-        IFWSS.DataSetInfo memory dsInfo = IFWSS.DataSetInfo({
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo = FilecoinWarmStorageService.DataSetInfoView({
             pdpRailId: 0,
             cacheMissRailId: 0,
             cdnRailId: 0,
@@ -1261,10 +1306,11 @@ contract FilBeamOperatorTest is Test {
             commissionBps: 0,
             clientDataSetId: 0,
             pdpEndEpoch: 0,
-            providerId: 0
+            providerId: 0,
+            dataSetId: 3
         });
         uint256 dataSetId3 = 3;
-        mockFWSS.setDataSetInfo(dataSetId3, dsInfo);
+        mockStateView.setDataSetInfo(dataSetId3, dsInfo);
 
         // Record usage
         vm.prank(filBeamOperatorController);
@@ -1357,6 +1403,7 @@ contract FilBeamOperatorTest is Test {
         // Deploy a new FilBeamOperator instance to act as the new operator
         FilBeamOperator newOperator = new FilBeamOperator(
             address(mockFWSS),
+            address(mockStateView),
             address(mockPayments),
             CDN_RATE_PER_BYTE,
             CACHE_MISS_RATE_PER_BYTE,
@@ -1390,6 +1437,7 @@ contract FilBeamOperatorTest is Test {
         // Deploy new operator
         FilBeamOperator newOperator = new FilBeamOperator(
             address(mockFWSS),
+            address(mockStateView),
             address(mockPayments),
             CDN_RATE_PER_BYTE,
             CACHE_MISS_RATE_PER_BYTE,
