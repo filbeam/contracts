@@ -9,7 +9,13 @@
 
 ## Overview
 
-The FilBeamOperator contract manages CDN and cache-miss usage reporting and payment settlement for the FilBeam service. This guide covers deployment and migration procedures.
+The FilBeamOperator contract manages CDN and cache-miss usage reporting and payment settlement for the FilBeam service. The contract uses the **UUPS proxy pattern** for upgradeability.
+
+### Architecture
+- **Proxy Contract**: The address users interact with (stores all state)
+- **Implementation Contract**: Contains the business logic (can be upgraded)
+
+This guide covers deployment, upgrades, and migration procedures.
 
 ## Initial Deployment
 
@@ -39,7 +45,7 @@ The FilBeamOperator contract manages CDN and cache-miss usage reporting and paym
 
 ### Deployment Steps
 
-#### Step 1: Deploy New FilBeamOperator Contract
+#### Step 1: Deploy FilBeamOperator (Proxy + Implementation)
 
 ```bash
 # Deploy the contract
@@ -50,22 +56,27 @@ forge script script/DeployFilBeamOperator.s.sol \
 
 # Expected output:
 # === FilBeamOperator Deployment Complete ===
-# FilBeamOperator deployed at: 0x...
-# === Configuration ===
-# FWSS address: <fwss_address>
-# Payments address: <payments_address>
+# === Contract Addresses ===
+# Proxy Address (use this!): 0x...      <-- This is the address you use
+# Implementation Address: 0x...          <-- For reference only
+# === Verification ===
+# Contract Version: 1.0.0
 # ...
 ```
 
 #### Step 2: Verify Deployment
 
 ```bash
+# Set the PROXY address (not implementation!)
+export FILBEAM_OPERATOR_ADDRESS=0x...  # Use Proxy Address from deployment output
+
 # Verify contract configuration
 cast call $FILBEAM_OPERATOR_ADDRESS "fwssContractAddress()" --rpc-url $RPC_URL
 cast call $FILBEAM_OPERATOR_ADDRESS "paymentsContractAddress()" --rpc-url $RPC_URL
 cast call $FILBEAM_OPERATOR_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
 cast call $FILBEAM_OPERATOR_ADDRESS "cacheMissRatePerByte()" --rpc-url $RPC_URL
 cast call $FILBEAM_OPERATOR_ADDRESS "filBeamOperatorController()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_ADDRESS "version()" --rpc-url $RPC_URL  # Should return "1.0.0"
 ```
 
 #### Step 3: Transfer FWSS Controller Authorization
@@ -111,9 +122,52 @@ cast call $FWSS_ADDRESS \
 
 ## Future Contract Upgrades
 
-### Rate Change Procedure
+FilBeamOperator supports two types of upgrades:
 
-Since rates are immutable in FilBeamOperator, changing rates requires deploying a new contract. FWSS can only have one authorized FilBeamController at a time, which affects settlement capabilities.
+1. **UUPS Upgrade** - For bug fixes or feature additions (preserves rates and state)
+2. **Rate Change Migration** - Requires deploying a new proxy (rates are immutable per deployment)
+
+### UUPS Upgrade (Bug Fixes / Features)
+
+Use this for logic changes that don't require modifying rates.
+
+#### Step 1: Deploy New Implementation
+
+```bash
+# Deploy only the new implementation contract
+forge create src/FilBeamOperator.sol:FilBeamOperator \
+  --rpc-url $RPC_URL \
+  --private-key $OWNER_PRIVATE_KEY
+
+export NEW_IMPLEMENTATION=0x...  # New implementation address
+```
+
+#### Step 2: Upgrade the Proxy
+
+```bash
+# Owner calls upgradeToAndCall on the proxy
+cast send $FILBEAM_OPERATOR_ADDRESS \
+  "upgradeToAndCall(address,bytes)" \
+  $NEW_IMPLEMENTATION \
+  "0x" \
+  --private-key $OWNER_PRIVATE_KEY \
+  --rpc-url $RPC_URL
+```
+
+#### Step 3: Verify Upgrade
+
+```bash
+# Check new version
+cast call $FILBEAM_OPERATOR_ADDRESS "version()" --rpc-url $RPC_URL
+# Should return new version (e.g., "1.1.0")
+
+# Verify state is preserved
+cast call $FILBEAM_OPERATOR_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
+```
+
+### Rate Change Migration
+
+Since rates are immutable in FilBeamOperator, changing rates requires deploying a new proxy. FWSS can only have one authorized FilBeamController at a time, which affects settlement capabilities.
 
 ### Migration Approach: Clean Transition
 

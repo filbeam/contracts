@@ -7,6 +7,7 @@ FilBeamOperator is a smart contract used for aggregating CDN and cache-miss usag
 - **Usage Reporting**: Batch methods for reporting CDN and cache-miss usage
 - **Rail Settlements**: Independent settlement for CDN and cache-miss payment rails
 - **Access Control**: Separate roles for contract management and usage reporting
+- **Upgradeable**: Uses UUPS proxy pattern for safe contract upgrades
 
 ## Foundry
 
@@ -39,15 +40,20 @@ $ forge fmt
 
 For full deployment and migration guide refer to the [DEPLOYMENT](./DEPLOYMENT.md) document in this repository.
 
-The FilBeamOperator contract requires the following constructor parameters:
+The FilBeamOperator contract uses the UUPS proxy pattern. Deployment creates:
+1. **Implementation Contract** - Contains the logic (don't interact with this directly)
+2. **Proxy Contract** - The address users interact with (stores all state)
+
+The contract is initialized with the following parameters:
 
 ```solidity
-constructor(
+function initialize(
     address fwssAddress,           // FWSS contract address
-    address _paymentsAddress,      // Payments contract address for rail management
-    uint256 _cdnRatePerByte,       // Rate per byte for CDN usage
-    uint256 _cacheMissRatePerByte, // Rate per byte for cache-miss usage
-    address _filBeamOperatorController      // Address authorized to report usage
+    address fwssStateViewAddress,  // FWSS State View contract address
+    address paymentsAddress,       // Payments contract address for rail management
+    uint256 cdnRatePerByte,        // Rate per byte for CDN usage
+    uint256 cacheMissRatePerByte,  // Rate per byte for cache-miss usage
+    address filBeamOperatorController // Address authorized to report usage
 )
 ```
 
@@ -59,6 +65,7 @@ Deploy the contract using Forge script:
 PRIVATE_KEY=<deployer_private_key> \
 FILBEAM_CONTROLLER=<filbeam_controller_address> \
 FWSS_ADDRESS=<fwss_contract_address> \
+FWSS_STATE_VIEW_ADDRESS=<fwss_state_view_address> \
 CDN_PRICE_USD_PER_TIB=<cdn_price_usd_per_tib> \
 CACHE_MISS_PRICE_USD_PER_TIB=<cache_miss_price_usd_per_tib> \
 PRICE_DECIMALS=<price_decimals> \
@@ -66,6 +73,10 @@ forge script script/DeployFilBeamOperator.s.sol \
 --rpc-url <your_rpc_url> \
 --broadcast
 ```
+
+The deployment will output:
+- **Proxy Address** - Use this address for all interactions
+- **Implementation Address** - For reference only
 
 **Note**: The deployer address automatically becomes the contract owner.
 
@@ -104,6 +115,12 @@ function transferOwnership(address newOwner) external onlyOwner
 function setFilBeamOperatorController(address _filBeamOperatorController) external onlyOwner
 ```
 
+**Upgrades (UUPS)**
+```solidity
+function upgradeToAndCall(address newImplementation, bytes memory data) external onlyOwner
+function version() public pure returns (string memory)  // Returns current version
+```
+
 ## Key Concepts
 
 ### Batch Operations
@@ -121,6 +138,12 @@ function setFilBeamOperatorController(address _filBeamOperatorController) extern
 - **Independent Tracking**: CDN and cache-miss settlements tracked separately
 - **Epoch-Based**: Settlement periods defined by epoch ranges
 - **Accumulative**: Usage accumulates between settlements
+
+### Upgradeability (UUPS Pattern)
+- **Proxy Pattern**: Users interact with a proxy that delegates to an implementation
+- **State Preservation**: All data is stored in the proxy and preserved during upgrades
+- **Owner-Only Upgrades**: Only the contract owner can authorize upgrades
+- **Version Tracking**: Use `version()` to verify the current implementation version
 
 ### Cast
 

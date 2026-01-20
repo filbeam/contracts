@@ -5,6 +5,7 @@ import "forge-std/Script.sol";
 import "../src/FilBeamOperator.sol";
 import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
 import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 interface IERC20 {
     function decimals() external view returns (uint8);
@@ -62,20 +63,38 @@ contract DeployFilBeamOperator is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Deploy the FilBeamOperator contract (deployer becomes owner)
-        FilBeamOperator filBeam = new FilBeamOperator(
-            fwssAddress,
-            fwssStateViewAddress,
-            paymentsAddress,
-            cdnRatePerByte,
-            cacheMissRatePerByte,
-            filBeamOperatorController
+        // Step 1: Deploy the implementation
+        FilBeamOperator implementation = new FilBeamOperator();
+
+        // Step 2: Encode the initialize call
+        bytes memory initializeData = abi.encodeCall(
+            FilBeamOperator.initialize,
+            (
+                fwssAddress,
+                fwssStateViewAddress,
+                paymentsAddress,
+                cdnRatePerByte,
+                cacheMissRatePerByte,
+                filBeamOperatorController
+            )
         );
+
+        //Step 3: Deploy ERC1967 proxy pointing to the implementation
+        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initializeData);
+
+        // Step 4: cast the proxy to FIlBeamOperator for verification
+        FilBeamOperator filBeam = FilBeamOperator(address(proxy));
 
         vm.stopBroadcast();
 
         // Log deployment information
         console2.log("=== FilBeamOperator Deployment Complete ===");
+        console2.log("=== Contract Addresses ===");
+        console2.log("Proxy Address (use this):", address(proxy));
+        console2.log("Implementation Address:", address(implementation));
+        console2.log("");
+        console2.log("=== Verification ===");
+        console2.log("Contract Version:", filBeam.version());
         console2.log("FilBeamOperator deployed at:", address(filBeam));
         console2.log("");
         console2.log("=== Configuration ===");

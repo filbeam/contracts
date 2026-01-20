@@ -2,23 +2,26 @@
 pragma solidity ^0.8.13;
 
 import "./Errors.sol";
-import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Ownable2StepUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Ownable2StepUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {FilecoinPayV1} from "@filecoin-pay/FilecoinPayV1.sol";
 import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
 import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
 
-contract FilBeamOperator is Ownable2Step {
+contract FilBeamOperator is Initializable, Ownable2StepUpgradeable, UUPSUpgradeable {
     struct DataSetUsage {
         uint256 cdnAmount;
         uint256 cacheMissAmount;
         uint256 maxReportedEpoch;
     }
 
-    address public immutable fwssContractAddress;
-    address public immutable fwssStateViewContractAddress;
-    address public immutable paymentsContractAddress;
-    uint256 public immutable cdnRatePerByte;
-    uint256 public immutable cacheMissRatePerByte;
+    address public fwssContractAddress;
+    address public fwssStateViewContractAddress;
+    address public paymentsContractAddress;
+    uint256 public cdnRatePerByte;
+    uint256 public cacheMissRatePerByte;
     address public filBeamOperatorController;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
@@ -41,6 +44,11 @@ contract FilBeamOperator is Ownable2Step {
 
     event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
     /// @notice Initializes the FilBeamOperator contract
     /// @param _fwssAddress Address of the FWSS contract
     /// @param _fwssStateViewAddress Address of the FWSS State View Contract
@@ -48,19 +56,23 @@ contract FilBeamOperator is Ownable2Step {
     /// @param _cdnRatePerByte CDN rate per byte in smallest token units
     /// @param _cacheMissRatePerByte Cache miss rate per byte in smallest token units
     /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
-    constructor(
+    function initialize(
         address _fwssAddress,
         address _fwssStateViewAddress,
         address _paymentsAddress,
         uint256 _cdnRatePerByte,
         uint256 _cacheMissRatePerByte,
         address _filBeamOperatorController
-    ) Ownable(msg.sender) {
+    ) public initializer {
         if (_fwssAddress == address(0)) revert InvalidAddress();
         if (_fwssStateViewAddress == address(0)) revert InvalidAddress();
         if (_paymentsAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
         if (_filBeamOperatorController == address(0)) revert InvalidAddress();
+
+        __Ownable_init(msg.sender);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
 
         fwssContractAddress = _fwssAddress;
         fwssStateViewContractAddress = _fwssStateViewAddress;
@@ -228,5 +240,14 @@ contract FilBeamOperator is Ownable2Step {
         FilecoinPayV1.RailView memory rail = FilecoinPayV1(paymentsContractAddress).getRail(railId);
         // Return the minimum of requested amount and available lockup
         return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
+    }
+
+    /// @notice Authorizes contract upgrades - only callable by owner
+    /// @dev Required by UUPS pattern
+    /// @param newImplementation Address of new implementation contract
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
+    function version() public pure virtual returns (string memory) {
+        return "1.0.0";
     }
 }
