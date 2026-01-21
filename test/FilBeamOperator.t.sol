@@ -59,20 +59,16 @@ contract FilBeamOperatorTest is Test {
         mockPayments = new MockPayments();
 
         // Deploy implementation
-        implementation = new FilBeamOperator();
+        implementation = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE
+        );
 
         // Encode intialize call
-        bytes memory initializeData = abi.encodeCall(
-            FilBeamOperator.initialize,
-            (
-                address(mockFWSS),
-                address(mockStateView),
-                address(mockPayments),
-                CDN_RATE_PER_BYTE,
-                CACHE_MISS_RATE_PER_BYTE,
-                filBeamOperatorController
-            )
-        );
+        bytes memory initializeData = abi.encodeCall(FilBeamOperator.initialize, (filBeamOperatorController));
 
         // Deploy proxy
         proxy = new ERC1967Proxy(address(implementation), initializeData);
@@ -206,111 +202,43 @@ contract FilBeamOperatorTest is Test {
     }
 
     function test_InitializeRevertZeroAddress() public {
-        FilBeamOperator impl = new FilBeamOperator();
-
         vm.expectRevert(InvalidAddress.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(0),
-                    address(mockStateView),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+        new FilBeamOperator(
+            address(0), address(mockStateView), address(mockPayments), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE
         );
 
         vm.expectRevert(InvalidAddress.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(0),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+        new FilBeamOperator(
+            address(mockFWSS), address(0), address(mockPayments), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE
         );
 
         vm.expectRevert(InvalidAddress.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(0),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+        new FilBeamOperator(
+            address(mockFWSS), address(mockStateView), address(0), CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE
         );
     }
 
     function test_InitializeRevertZeroRate() public {
-        FilBeamOperator impl = new FilBeamOperator();
-
         vm.expectRevert(InvalidRate.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(mockPayments),
-                    0,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+        new FilBeamOperator(
+            address(mockFWSS), address(mockStateView), address(mockPayments), 0, CACHE_MISS_RATE_PER_BYTE
         );
 
         vm.expectRevert(InvalidRate.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    0,
-                    filBeamOperatorController
-                )
-            )
-        );
+        new FilBeamOperator(address(mockFWSS), address(mockStateView), address(mockPayments), CDN_RATE_PER_BYTE, 0);
     }
 
     function test_InitializeRevertZeroFilBeamController() public {
-        FilBeamOperator impl = new FilBeamOperator();
+        FilBeamOperator impl = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE
+        );
 
         vm.expectRevert(InvalidAddress.selector);
-        new ERC1967Proxy(
-            address(impl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    address(0)
-                )
-            )
-        );
+        new ERC1967Proxy(address(impl), abi.encodeCall(FilBeamOperator.initialize, (address(0))));
     }
 
     function test_ReportUsageRollup() public {
@@ -1464,21 +1392,16 @@ contract FilBeamOperatorTest is Test {
 
     function test_TransferFwssFilBeamController_NewOperatorCanCallAfterMigration() public {
         // Deploy a new FilBeamOperator instance to act as the new operator
-        FilBeamOperator newOperatorImpl = new FilBeamOperator();
+        FilBeamOperator newOperatorImpl = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE
+        );
 
         ERC1967Proxy newOperatorProxy = new ERC1967Proxy(
-            address(newOperatorImpl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+            address(newOperatorImpl), abi.encodeCall(FilBeamOperator.initialize, (filBeamOperatorController))
         );
 
         FilBeamOperator newOperator = FilBeamOperator(address(newOperatorProxy));
@@ -1508,21 +1431,16 @@ contract FilBeamOperatorTest is Test {
 
     function test_TransferFwssFilBeamController_IntegrationFlow() public {
         // Deploy new operator
-        FilBeamOperator newOperatorImpl = new FilBeamOperator();
+        FilBeamOperator newOperatorImpl = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE
+        );
 
         ERC1967Proxy newOperatorProxy = new ERC1967Proxy(
-            address(newOperatorImpl),
-            abi.encodeCall(
-                FilBeamOperator.initialize,
-                (
-                    address(mockFWSS),
-                    address(mockStateView),
-                    address(mockPayments),
-                    CDN_RATE_PER_BYTE,
-                    CACHE_MISS_RATE_PER_BYTE,
-                    filBeamOperatorController
-                )
-            )
+            address(newOperatorImpl), abi.encodeCall(FilBeamOperator.initialize, (filBeamOperatorController))
         );
 
         FilBeamOperator newOperator = FilBeamOperator(address(newOperatorProxy));
@@ -1568,30 +1486,22 @@ contract FilBeamOperatorTest is Test {
 
     function test_CannotInitializeTwice() public {
         vm.expectRevert();
-        filBeam.initialize(
-            address(mockFWSS),
-            address(mockStateView),
-            address(mockPayments),
-            CDN_RATE_PER_BYTE,
-            CACHE_MISS_RATE_PER_BYTE,
-            filBeamOperatorController
-        );
+        filBeam.initialize(filBeamOperatorController);
     }
 
     function test_CannotInitializeImplementationDirectly() public {
         vm.expectRevert();
-        implementation.initialize(
+        implementation.initialize(filBeamOperatorController);
+    }
+
+    function test_OnlyOwnerCanUpgrade() public {
+        FilBeamOperator newImpl = new FilBeamOperator(
             address(mockFWSS),
             address(mockStateView),
             address(mockPayments),
             CDN_RATE_PER_BYTE,
-            CACHE_MISS_RATE_PER_BYTE,
-            filBeamOperatorController
+            CACHE_MISS_RATE_PER_BYTE
         );
-    }
-
-    function test_OnlyOwnerCanUpgrade() public {
-        FilBeamOperator newImpl = new FilBeamOperator();
 
         vm.prank(user1);
         vm.expectRevert();
@@ -1610,7 +1520,13 @@ contract FilBeamOperatorTest is Test {
         address ownerBefore = filBeam.owner();
 
         // Deploy new implementation
-        FilBeamOperator newImpl = new FilBeamOperator();
+        FilBeamOperator newImpl = new FilBeamOperator(
+            address(mockFWSS),
+            address(mockStateView),
+            address(mockPayments),
+            CDN_RATE_PER_BYTE,
+            CACHE_MISS_RATE_PER_BYTE
+        );
         filBeam.upgradeToAndCall(address(newImpl), "");
 
         // Get state after upgrade

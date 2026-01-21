@@ -17,11 +17,11 @@ contract FilBeamOperator is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
         uint256 maxReportedEpoch;
     }
 
-    address public fwssContractAddress;
-    address public fwssStateViewContractAddress;
-    address public paymentsContractAddress;
-    uint256 public cdnRatePerByte;
-    uint256 public cacheMissRatePerByte;
+    address public immutable fwssContractAddress;
+    address public immutable fwssStateViewContractAddress;
+    address public immutable paymentsContractAddress;
+    uint256 public immutable cdnRatePerByte;
+    uint256 public immutable cacheMissRatePerByte;
     address public filBeamOperatorController;
 
     mapping(uint256 => DataSetUsage) public dataSetUsage;
@@ -45,40 +45,41 @@ contract FilBeamOperator is Initializable, Ownable2StepUpgradeable, UUPSUpgradea
     event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    /// @notice Initializes the FilBeamOperator contract
     /// @param _fwssAddress Address of the FWSS contract
     /// @param _fwssStateViewAddress Address of the FWSS State View Contract
     /// @param _paymentsAddress Address of the Payments contract
     /// @param _cdnRatePerByte CDN rate per byte in smallest token units
     /// @param _cacheMissRatePerByte Cache miss rate per byte in smallest token units
-    /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
-    function initialize(
+    constructor(
         address _fwssAddress,
         address _fwssStateViewAddress,
         address _paymentsAddress,
         uint256 _cdnRatePerByte,
-        uint256 _cacheMissRatePerByte,
-        address _filBeamOperatorController
-    ) public initializer {
+        uint256 _cacheMissRatePerByte
+    ) {
         if (_fwssAddress == address(0)) revert InvalidAddress();
         if (_fwssStateViewAddress == address(0)) revert InvalidAddress();
         if (_paymentsAddress == address(0)) revert InvalidAddress();
         if (_cdnRatePerByte == 0 || _cacheMissRatePerByte == 0) revert InvalidRate();
-        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
-
-        __Ownable_init(msg.sender);
-        __Ownable2Step_init();
-        __UUPSUpgradeable_init();
 
         fwssContractAddress = _fwssAddress;
         fwssStateViewContractAddress = _fwssStateViewAddress;
         paymentsContractAddress = _paymentsAddress;
         cdnRatePerByte = _cdnRatePerByte;
         cacheMissRatePerByte = _cacheMissRatePerByte;
+
+        _disableInitializers();
+    }
+
+    /// @notice Initializes the FilBeamOperator contract
+    /// @param _filBeamOperatorController Address authorized to record usage and terminate payment rails
+    function initialize(address _filBeamOperatorController) public initializer {
+        if (_filBeamOperatorController == address(0)) revert InvalidAddress();
+
+        __Ownable_init(msg.sender);
+        __Ownable2Step_init();
+        __UUPSUpgradeable_init();
+
         filBeamOperatorController = _filBeamOperatorController;
     }
 

@@ -68,15 +68,15 @@ forge script script/DeployFilBeamOperator.s.sol \
 
 ```bash
 # Set the PROXY address (not implementation!)
-export FILBEAM_OPERATOR_ADDRESS=0x...  # Use Proxy Address from deployment output
+export FILBEAM_OPERATOR_PROXY_ADDRESS=0x...
 
 # Verify contract configuration
-cast call $FILBEAM_OPERATOR_ADDRESS "fwssContractAddress()" --rpc-url $RPC_URL
-cast call $FILBEAM_OPERATOR_ADDRESS "paymentsContractAddress()" --rpc-url $RPC_URL
-cast call $FILBEAM_OPERATOR_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
-cast call $FILBEAM_OPERATOR_ADDRESS "cacheMissRatePerByte()" --rpc-url $RPC_URL
-cast call $FILBEAM_OPERATOR_ADDRESS "filBeamOperatorController()" --rpc-url $RPC_URL
-cast call $FILBEAM_OPERATOR_ADDRESS "version()" --rpc-url $RPC_URL  # Should return "1.0.0"
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "fwssContractAddress()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "paymentsContractAddress()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "cacheMissRatePerByte()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "filBeamOperatorController()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "version()" --rpc-url $RPC_URL  # Should return "1.0.0"
 ```
 
 #### Step 3: Transfer FWSS Controller Authorization
@@ -85,7 +85,7 @@ cast call $FILBEAM_OPERATOR_ADDRESS "version()" --rpc-url $RPC_URL  # Should ret
 # Current FWSS controller should execute this
 cast send $FWSS_ADDRESS \
   "transferFilBeamController(address)" \
-  $FILBEAM_OPERATOR_ADDRESS \
+  $FILBEAM_OPERATOR_PROXY_ADDRESS \
   --private-key $CURRENT_CONTROLLER_PRIVATE_KEY \
   --rpc-url $RPC_URL
 ```
@@ -98,7 +98,7 @@ cast send $FWSS_ADDRESS \
 cast call $FWSS_ADDRESS \
   "getDataSetInfo(uint256)" \
   1 \
-  --from $FILBEAM_OPERATOR_ADDRESS \
+  --from $FILBEAM_OPERATOR_PROXY_ADDRESS \
   --rpc-url $RPC_URL
 ```
 
@@ -139,14 +139,14 @@ forge create src/FilBeamOperator.sol:FilBeamOperator \
   --rpc-url $RPC_URL \
   --private-key $OWNER_PRIVATE_KEY
 
-export NEW_IMPLEMENTATION=0x...  # New implementation address
+export FILBEAM_OPERATOR_IMPL_ADDRESS=0x...  # New implementation address
 ```
 
 #### Step 2: Upgrade the Proxy
 
 ```bash
 # Owner calls upgradeToAndCall on the proxy
-cast send $FILBEAM_OPERATOR_ADDRESS \
+cast send $FILBEAM_OPERATOR_PROXY_ADDRESS \
   "upgradeToAndCall(address,bytes)" \
   $NEW_IMPLEMENTATION \
   "0x" \
@@ -158,11 +158,11 @@ cast send $FILBEAM_OPERATOR_ADDRESS \
 
 ```bash
 # Check new version
-cast call $FILBEAM_OPERATOR_ADDRESS "version()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "version()" --rpc-url $RPC_URL
 # Should return new version (e.g., "1.1.0")
 
 # Verify state is preserved
-cast call $FILBEAM_OPERATOR_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
+cast call $FILBEAM_OPERATOR_PROXY_ADDRESS "cdnRatePerByte()" --rpc-url $RPC_URL
 ```
 
 ### Rate Change Migration
@@ -244,7 +244,7 @@ If critical issues are discovered after migration:
 
 ```bash
 # If FWSS controller was transferred
-cast send $FILBEAM_OPERATOR_ADDRESS \
+cast send $FILBEAM_OPERATOR_PROXY_ADDRESS \
   "transferFwssFilBeamController(address)" \
   $PREVIOUS_CONTROLLER_ADDRESS \
   --private-key $OWNER_PRIVATE_KEY \

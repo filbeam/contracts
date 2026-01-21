@@ -64,20 +64,12 @@ contract DeployFilBeamOperator is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Step 1: Deploy the implementation
-        FilBeamOperator implementation = new FilBeamOperator();
+        FilBeamOperator implementation = new FilBeamOperator(
+            fwssAddress, fwssStateViewAddress, paymentsAddress, cdnRatePerByte, cacheMissRatePerByte
+        );
 
         // Step 2: Encode the initialize call
-        bytes memory initializeData = abi.encodeCall(
-            FilBeamOperator.initialize,
-            (
-                fwssAddress,
-                fwssStateViewAddress,
-                paymentsAddress,
-                cdnRatePerByte,
-                cacheMissRatePerByte,
-                filBeamOperatorController
-            )
-        );
+        bytes memory initializeData = abi.encodeCall(FilBeamOperator.initialize, (filBeamOperatorController));
 
         //Step 3: Deploy ERC1967 proxy pointing to the implementation
         ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), initializeData);
