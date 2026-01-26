@@ -48,11 +48,6 @@ The contract is initialized with the following parameters:
 
 ```solidity
 function initialize(
-    address fwssAddress,           // FWSS contract address
-    address fwssStateViewAddress,  // FWSS State View contract address
-    address paymentsAddress,       // Payments contract address for rail management
-    uint256 cdnRatePerByte,        // Rate per byte for CDN usage
-    uint256 cacheMissRatePerByte,  // Rate per byte for cache-miss usage
     address filBeamOperatorController // Address authorized to report usage
 )
 ```

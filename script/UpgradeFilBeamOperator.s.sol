@@ -52,7 +52,7 @@ contract UpgradeFilBeamOperator is Script {
 
         vm.stopBroadcast();
 
-        // Step 2: Verify the upgrade
+        // Step 3: Verify the upgrade
         FilBeamOperator filBeam = FilBeamOperator(filBeamOperatorProxyAddress);
         console2.log("=== FilBeamOperator Upgrade Complete ===");
         console2.log("Proxy Address:", filBeamOperatorProxyAddress);

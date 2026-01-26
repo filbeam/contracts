@@ -129,17 +129,34 @@ FilBeamOperator supports two types of upgrades:
 
 ### UUPS Upgrade (Bug Fixes / Features)
 
-Use this for logic changes that don't require modifying rates.
+Use this for logic changes that don't require modifying rates. The preferred method is using the provided upgrade script as it is safer and handles everything atomically.
 
-#### Step 1: Deploy New Implementation
+#### Method 1: Scripted Upgrade (Preferred)
 
+The [UpgradeFilBeamOperator.s.sol](./script/UpgradeFilBeamOperator.s.sol) script handles both deploying the new implementation and performing the upgrade in a single atomic broadcast
+
+```bash
+# Required env vars:
+# PRIVATE_KEY, FILBEAM_OPERATOR_PROXY_ADDRESS, FWSS_ADDRESS, 
+# FWSS_STATE_VIEW_ADDRESS, PAYMENTS_ADDRESS, CDN_RATE_PER_BYTE, CACHE_MISS_RATE_PER_BYTE
+# Note: Rates are immutable. To keep current rates, query the proxy first: 
+# cast call $PROXY "cdnRatePerByte()" --rpc-url $RPC_URL
+forge script script/UpgradeFilBeamOperator.s.sol \
+```
+
+#### Method 2: Manual Upgrade (Advanced)
+
+If you prefer manual control or need to separate the deployment and upgrade steps:
+
+**Step 1: Deploy New Implementation**
 ```bash
 # Deploy only the new implementation contract
 forge create src/FilBeamOperator.sol:FilBeamOperator \
+  --constructor-args $FWSS_ADDRESS $FWSS_STATE_VIEW_ADDRESS $PAYMENTS_ADDRESS $CDN_RATE_PER_BYTE $CACHE_MISS_RATE_PER_BYTE \
   --rpc-url $RPC_URL \
   --private-key $OWNER_PRIVATE_KEY
 
-export FILBEAM_OPERATOR_IMPL_ADDRESS=0x...  # New implementation address
+export NEW_IMPLEMENTATION=0x...  # From output above
 ```
 
 #### Step 2: Upgrade the Proxy
