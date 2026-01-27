@@ -142,6 +142,8 @@ The [UpgradeFilBeamOperator.s.sol](./script/UpgradeFilBeamOperator.s.sol) script
 # Note: Rates are immutable. To keep current rates, query the proxy first: 
 # cast call $PROXY "cdnRatePerByte()" --rpc-url $RPC_URL
 forge script script/UpgradeFilBeamOperator.s.sol \
+  --rpc-url $RPC_URL \
+  --private-key $OWNER_PRIVATE_KEY
 ```
 
 #### Method 2: Manual Upgrade (Advanced)
