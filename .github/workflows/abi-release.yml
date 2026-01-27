@@ -1,0 +1,36 @@
+name: ABI Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release-abi:
+    name: Release ABI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Build contracts
+        run: forge build
+
+      - name: Extract ABIs
+        run: |
+          mkdir -p abis
+          jq '.abi' out/FilBeamOperator.sol/FilBeamOperator.json \
+            > abis/FilBeamOperator.abi.json
+
+      - name: Publish ABIs to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            abis/**
