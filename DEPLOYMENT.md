@@ -6,6 +6,7 @@
 3. [Migration from FWSS to FilBeamOperator](#migration-from-fwss-to-filbeamoperator)
 4. [Future Contract Upgrades](#future-contract-upgrades)
 5. [Rollback Procedures](#rollback-procedures)
+6. [SP Settlement Tooling](#sp-settlement-tooling)
 
 ## Overview
 
@@ -206,3 +207,25 @@ cast send $FILBEAM_OPERATOR_ADDRESS \
 - Query logs for missing usage data
 - Manually report missing epochs if necessary
 - Verify data consistency after recovery
+
+## SP Settlement Tooling
+
+Service Providers can use the `tools/settle-sp.sh` tool to automate the settlement of outstanding cache-miss amounts for their datasets. This tool automatically discovers datasets for a given `PROVIDER_ID` and processes settlements in batches.
+
+### Prerequisites
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) (specifically `cast`)
+- [jq](https://jqlang.github.io/jq/download/)
+
+### Setup and Usage
+Detailed instructions can be found in the [TUTORIAL.md](TUTORIAL.md).
+
+Quick start:
+```bash
+export RPC_URL="https://your-rpc-url"
+export PRIVATE_KEY="0xyour_private_key"
+export PROVIDER_ID=123
+export FWSS_ADDRESS="0x..."
+export OPERATOR_ADDRESS="0x..."
+
+./tools/settle-sp.sh
+```
