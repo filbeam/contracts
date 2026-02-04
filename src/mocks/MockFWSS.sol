@@ -48,7 +48,10 @@ contract MockFWSS {
     {
         settlements.push(
             Settlement({
-                dataSetId: dataSetId, cdnAmount: cdnAmount, cacheMissAmount: cacheMissAmount, timestamp: block.timestamp
+                dataSetId: dataSetId,
+                cdnAmount: cdnAmount,
+                cacheMissAmount: cacheMissAmount,
+                timestamp: block.timestamp
             })
         );
 

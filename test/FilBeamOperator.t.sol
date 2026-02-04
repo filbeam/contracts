@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {FilBeamOperator} from "../src/FilBeamOperator.sol";
 import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
 import {MockFWSS} from "../src/mocks/MockFWSS.sol";
@@ -33,9 +33,9 @@ contract FilBeamOperatorTest is Test {
         uint256 cacheMissBytesUsed
     );
 
-    event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
+    event CDNSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup);
 
-    event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
+    event CacheMissSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup);
 
     event FwssFilBeamControllerChanged(address indexed previousController, address indexed newController);
 
@@ -345,7 +345,7 @@ contract FilBeamOperatorTest is Test {
         vm.stopPrank();
 
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_1, 300000);
+        emit CDNSettlement(DATA_SET_ID_1, 300000, 700000);
 
         vm.prank(user1);
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
@@ -374,7 +374,7 @@ contract FilBeamOperatorTest is Test {
         vm.stopPrank();
 
         vm.expectEmit(true, false, false, true);
-        emit CacheMissSettlement(DATA_SET_ID_1, 300000);
+        emit CacheMissSettlement(DATA_SET_ID_1, 300000, 700000);
 
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
@@ -813,9 +813,9 @@ contract FilBeamOperatorTest is Test {
         dataSetIds[1] = DATA_SET_ID_2;
 
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_1, 300000);
+        emit CDNSettlement(DATA_SET_ID_1, 300000, 700000);
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_2, 150000);
+        emit CDNSettlement(DATA_SET_ID_2, 150000, 850000);
 
         vm.prank(user1);
         filBeam.settleCDNPaymentRails(dataSetIds);
@@ -862,9 +862,9 @@ contract FilBeamOperatorTest is Test {
         dataSetIds[1] = DATA_SET_ID_2;
 
         vm.expectEmit(true, false, false, true);
-        emit CacheMissSettlement(DATA_SET_ID_1, 300000);
+        emit CacheMissSettlement(DATA_SET_ID_1, 300000, 700000);
         vm.expectEmit(true, false, false, true);
-        emit CacheMissSettlement(DATA_SET_ID_2, 150000);
+        emit CacheMissSettlement(DATA_SET_ID_2, 150000, 850000);
 
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRails(dataSetIds);
@@ -1485,5 +1485,187 @@ contract FilBeamOperatorTest is Test {
         // 7. Old operator cannot settle anymore (has accumulated amount but can't settle to FWSS)
         vm.expectRevert(MockFWSS.UnauthorizedCaller.selector);
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+    }
+
+    // ============ Settlement Event Tests ============
+
+    function test_SettlementEmitsEventWhenNoUsage() public {
+        // Record and settle all usage first
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // Settle CDN
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 1);
+
+        // Second settlement should emit event with settledAmount=0 and remainingLockup=lockupFixed
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_1, 0, 1000000);
+
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // No new FWSS settlement should occur
+        assertEq(mockFWSS.getSettlementsCount(), 1);
+
+        // Same for cache miss
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+
+        vm.expectEmit(true, false, false, true);
+        emit CacheMissSettlement(DATA_SET_ID_1, 0, 1000000);
+
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+    }
+
+    function test_SettlementEmitsEventWhenZeroLockup() public {
+        // Set lockup to 0
+        mockPayments.setLockupFixed(1, 0);
+        mockPayments.setLockupFixed(2, 0);
+
+        // Record usage
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // Settlement should emit event with settledAmount=0, remainingLockup=0
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_1, 0, 0);
+
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // No FWSS settlement should occur (zero lockup)
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+
+        // Amount should still be accumulated
+        (uint256 cdnAmount,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnAmount, 100000);
+
+        // Same for cache miss
+        vm.expectEmit(true, false, false, true);
+        emit CacheMissSettlement(DATA_SET_ID_1, 0, 0);
+
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+
+        (, uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(cacheMissAmount, 100000);
+    }
+
+    function test_NoEventForUninitializedDataset() public {
+        // Try to settle an uninitialized dataset - should not emit any event
+        // We can't easily test for absence of events, but we can verify no state changes
+        vm.recordLogs();
+
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // Get logs and verify no CDNSettlement or CacheMissSettlement events
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            // CDNSettlement and CacheMissSettlement event signatures should not appear
+            bytes32 cdnSettlementTopic = keccak256("CDNSettlement(uint256,uint256,uint256)");
+            bytes32 cacheMissSettlementTopic = keccak256("CacheMissSettlement(uint256,uint256,uint256)");
+            assertTrue(
+                logs[i].topics[0] != cdnSettlementTopic,
+                "CDNSettlement event should not be emitted for uninitialized dataset"
+            );
+            assertTrue(
+                logs[i].topics[0] != cacheMissSettlementTopic,
+                "CacheMissSettlement event should not be emitted for uninitialized dataset"
+            );
+        }
+
+        // No settlements should occur
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+    }
+
+    function test_NoEventForNoRailConfigured() public {
+        // Set up a dataset with no rails
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo = FilecoinWarmStorageService.DataSetInfoView({
+            pdpRailId: 0,
+            cacheMissRailId: 0,
+            cdnRailId: 0,
+            payer: user1,
+            payee: user2,
+            serviceProvider: address(0),
+            commissionBps: 0,
+            clientDataSetId: 0,
+            pdpEndEpoch: 0,
+            providerId: 0,
+            dataSetId: 3
+        });
+        uint256 dataSetId3 = 3;
+        mockStateView.setDataSetInfo(dataSetId3, dsInfo);
+
+        // Record usage (this initializes the dataset)
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            1, _singleUint256Array(dataSetId3), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+
+        // Try to settle - should not emit events since no rail is configured
+        vm.recordLogs();
+
+        filBeam.settleCDNPaymentRails(_singleUint256Array(dataSetId3));
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(dataSetId3));
+
+        // Get logs and verify no settlement events
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i = 0; i < logs.length; i++) {
+            bytes32 cdnSettlementTopic = keccak256("CDNSettlement(uint256,uint256,uint256)");
+            bytes32 cacheMissSettlementTopic = keccak256("CacheMissSettlement(uint256,uint256,uint256)");
+            assertTrue(
+                logs[i].topics[0] != cdnSettlementTopic,
+                "CDNSettlement event should not be emitted when no rail configured"
+            );
+            assertTrue(
+                logs[i].topics[0] != cacheMissSettlementTopic,
+                "CacheMissSettlement event should not be emitted when no rail configured"
+            );
+        }
+
+        // No settlements should occur
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+
+        // Amount should still be accumulated
+        (uint256 cdnAmount, uint256 cacheMissAmount,) = filBeam.dataSetUsage(dataSetId3);
+        assertEq(cdnAmount, 100000);
+        assertEq(cacheMissAmount, 100000);
+    }
+
+    function test_PartialSettlementWithLimitedLockupEmitsCorrectRemainingLockup() public {
+        // Set limited lockup for CDN rail
+        mockPayments.setLockupFixed(1, 50000); // CDN rail has 50k lockup
+        mockPayments.setLockupFixed(2, 30000); // Cache miss rail has 30k lockup
+
+        // Record usage that will exceed the lockup limits
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            1,
+            _singleUint256Array(DATA_SET_ID_1),
+            _singleUint256Array(1000), // 100k CDN amount (1000 * 100)
+            _singleUint256Array(500) // 100k cache miss amount (500 * 200)
+        );
+
+        // First CDN settlement - should settle 50k, remaining lockup = 0 (all lockup used)
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(DATA_SET_ID_1, 50000, 0);
+
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // First cache miss settlement - should settle 30k, remaining lockup = 0
+        vm.expectEmit(true, false, false, true);
+        emit CacheMissSettlement(DATA_SET_ID_1, 30000, 0);
+
+        filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+
+        // Verify partial settlements
+        (uint256 cdnAmount, uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(cdnAmount, 50000, "Should have 50k CDN remaining");
+        assertEq(cacheMissAmount, 70000, "Should have 70k cache miss remaining");
     }
 }

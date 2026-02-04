@@ -82,7 +82,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Skips datasets without valid rail configuration
   - Continues processing even if some datasets cannot be settled
 - **Partial Settlement**: Supports partial settlements when `accumulated_amount > lockupFixed`
-- **Events**: Emits `CDNSettlement` event with actual settled amount (may be less than accumulated)
+- **Events**: Emits `CDNSettlement` event with settled amount and remaining lockup after settlement
+  - Event is emitted whenever a valid rail is configured, even if `settledAmount` is 0
+  - No event is emitted for uninitialized datasets or when no rail is configured
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
 **Method**: `settleCacheMissPaymentRails(uint256[] dataSetIds)`
@@ -106,7 +108,9 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
   - Skips datasets without valid rail configuration
   - Continues processing even if some datasets cannot be settled
 - **Partial Settlement**: Supports partial settlements when `accumulated_amount > lockupFixed`
-- **Events**: Emits `CacheMissSettlement` event with actual settled amount (may be less than accumulated)
+- **Events**: Emits `CacheMissSettlement` event with settled amount and remaining lockup after settlement
+  - Event is emitted whenever a valid rail is configured, even if `settledAmount` is 0
+  - No event is emitted for uninitialized datasets or when no rail is configured
 - **Independent Operation**: Can be called independently of CDN settlement
 
 #### Payment Rail Termination
@@ -160,8 +164,8 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Events
 - `UsageReported(uint256 indexed dataSetId, uint256 indexed fromEpoch, uint256 indexed toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
-- `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
-- `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
+- `CDNSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup)` - Emitted after CDN settlement attempt. `settledAmount` is the amount transferred (may be 0 if no usage or zero lockup). `remainingLockup` is the lockup available after settlement.
+- `CacheMissSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup)` - Emitted after cache-miss settlement attempt. `settledAmount` is the amount transferred (may be 0 if no usage or zero lockup). `remainingLockup` is the lockup available after settlement.
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
 - `FilBeamOperatorControllerUpdated(address indexed oldController, address indexed newController)`
 - `FwssFilBeamControllerMigrated(address indexed previousController, address indexed newController)`

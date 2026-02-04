@@ -31,9 +31,9 @@ contract FilBeamOperator is Ownable2Step {
         uint256 cacheMissBytesUsed
     );
 
-    event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
+    event CDNSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup);
 
-    event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
+    event CacheMissSettlement(uint256 indexed dataSetId, uint256 settledAmount, uint256 remainingLockup);
 
     event PaymentRailsTerminated(uint256 indexed dataSetId);
 
@@ -182,11 +182,8 @@ contract FilBeamOperator is Ownable2Step {
     function _settlePaymentRail(uint256 dataSetId, bool isCDN) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        // Get the appropriate amount based on rail type
-        uint256 amount = isCDN ? usage.cdnAmount : usage.cacheMissAmount;
-
-        // Early return if data set not initialized or no usage to settle
-        if (usage.maxReportedEpoch == 0 || amount == 0) {
+        // Early return if data set not initialized (no event)
+        if (usage.maxReportedEpoch == 0) {
             return;
         }
 
@@ -195,38 +192,39 @@ contract FilBeamOperator is Ownable2Step {
             FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId);
         uint256 railId = isCDN ? dsInfo.cdnRailId : dsInfo.cacheMissRailId;
 
-        // Early return if no rail configured
+        // Early return if no rail configured (no event)
         if (railId == 0) {
             return;
         }
 
-        // Get the actual amount we can settle based on rail lockup
-        uint256 amountToSettle = _getSettleableAmount(railId, amount);
+        // Get the appropriate amount based on rail type
+        uint256 amount = isCDN ? usage.cdnAmount : usage.cacheMissAmount;
 
-        // Early return if nothing can be settled (no lockup available)
-        if (amountToSettle == 0) {
-            return;
-        }
-
-        // Settle the amount through FWSS
-        if (isCDN) {
-            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
-            usage.cdnAmount -= amountToSettle;
-            emit CDNSettlement(dataSetId, amountToSettle);
-        } else {
-            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
-            usage.cacheMissAmount -= amountToSettle;
-            emit CacheMissSettlement(dataSetId, amountToSettle);
-        }
-    }
-
-    /// @dev Internal helper to get the settleable amount based on rail lockup
-    /// @param railId The payment rail ID
-    /// @param requestedAmount The amount requested to settle
-    /// @return The amount that can be settled (limited by lockupFixed)
-    function _getSettleableAmount(uint256 railId, uint256 requestedAmount) internal view returns (uint256) {
+        // Get rail info for lockup amount
         FilecoinPayV1.RailView memory rail = FilecoinPayV1(paymentsContractAddress).getRail(railId);
-        // Return the minimum of requested amount and available lockup
-        return requestedAmount > rail.lockupFixed ? rail.lockupFixed : requestedAmount;
+
+        // Calculate the amount we can settle (limited by lockup)
+        uint256 amountToSettle = amount > rail.lockupFixed ? rail.lockupFixed : amount;
+
+        // Calculate remaining lockup after settlement
+        uint256 remainingLockup = rail.lockupFixed - amountToSettle;
+
+        // Settle through FWSS only if there's something to settle
+        if (amountToSettle > 0) {
+            if (isCDN) {
+                FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
+                usage.cdnAmount -= amountToSettle;
+            } else {
+                FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
+                usage.cacheMissAmount -= amountToSettle;
+            }
+        }
+
+        // Always emit event (even if settledAmount is 0)
+        if (isCDN) {
+            emit CDNSettlement(dataSetId, amountToSettle, remainingLockup);
+        } else {
+            emit CacheMissSettlement(dataSetId, amountToSettle, remainingLockup);
+        }
     }
 }
