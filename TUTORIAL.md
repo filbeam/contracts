@@ -9,7 +9,14 @@ This guide explains how Service Providers (SPs) can use the `settle-sp.sh` tool 
    curl -L https://foundry.paradigm.xyz | bash
    foundryup
    ```
-2. **Environment Variables**: You will need to set several environment variables to run the script.
+2. **jq**: JSON processor used for parsing blockchain logs.
+   ```bash
+   # macOS
+   brew install jq
+   # Ubuntu/Debian
+   sudo apt-get install jq
+   ```
+3. **Environment Variables**: You will need to set several environment variables to run the script.
 
 ## Setup
 
@@ -39,11 +46,11 @@ export FROM_BLOCK=5000000              # Optional: Block where FWSS was deployed
 ### What the tool does:
 1. **Discovers**: Automatically finds all datasets created for your `PROVIDER_ID` by scanning the blockchain logs.
 2. **Checks**: Queries the `FilBeamOperator` contract for each dataset to see if there are unsettled cache-miss amounts (`cacheMissAmount > 0`).
-3. **Settles**: Submits batch transactions (max 100 datasets per tx) to settle the outstanding amounts.
+3. **Settles**: Submits batch transactions (max 50 datasets per tx) to settle the outstanding amounts.
 
 ## Batching and Limits
 
-The script default batch size is **100**. This is designed to stay within gas limits.
+The script default batch size is **50**. This is designed to stay within Filecoin gas limits.
 If you have thousands of datasets, the script will submit multiple transactions sequentially.
 
 To change the batch size:

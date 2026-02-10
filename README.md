@@ -122,6 +122,28 @@ function setFilBeamOperatorController(address _filBeamOperatorController) extern
 - **Epoch-Based**: Settlement periods defined by epoch ranges
 - **Accumulative**: Usage accumulates between settlements
 
+## SP Settlement Tooling
+
+Service Providers can use `tools/settle-sp.sh` to settle outstanding cache-miss amounts for their datasets.
+
+### Prerequisites
+- [Foundry](https://book.getfoundry.sh/getting-started/installation) (specifically `cast`)
+- [jq](https://jqlang.github.io/jq/download/)
+
+### Quick Start
+
+```bash
+export RPC_URL="https://your-rpc-url"
+export PRIVATE_KEY="0xyour_private_key"
+export PROVIDER_ID=123
+export FWSS_ADDRESS="0x..."
+export OPERATOR_ADDRESS="0x..."
+
+./tools/settle-sp.sh
+```
+
+For detailed instructions, see [TUTORIAL.md](TUTORIAL.md).
+
 ### Cast
 
 ```shell
