@@ -135,9 +135,8 @@ Service Providers can use `tools/settle-sp.sh` to settle outstanding cache-miss 
 ```bash
 export RPC_URL="https://your-rpc-url"
 export PRIVATE_KEY="0xyour_private_key"
-export PROVIDER_ID=123
-export FWSS_ADDRESS="0x..."
 export OPERATOR_ADDRESS="0x..."
+export DATASET_IDS="11291,11300,11305"
 
 ./tools/settle-sp.sh
 ```
