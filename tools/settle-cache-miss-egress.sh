@@ -8,27 +8,27 @@ set -e
 # Configuration
 RPC_URL="${RPC_URL:-http://localhost:8545}"
 PRIVATE_KEY="${PRIVATE_KEY}"
-OPERATOR_ADDRESS="${OPERATOR_ADDRESS}"
+FILBEAM_OPERATOR_ADDRESS="${FILBEAM_OPERATOR_ADDRESS}"
 DATASET_IDS="${DATASET_IDS}"
 BATCH_SIZE="${BATCH_SIZE:-50}"
 
 # Check required variables
-if [ -z "$PRIVATE_KEY" ] || [ -z "$OPERATOR_ADDRESS" ] || [ -z "$DATASET_IDS" ]; then
+if [ -z "$PRIVATE_KEY" ] || [ -z "$FILBEAM_OPERATOR_ADDRESS" ] || [ -z "$DATASET_IDS" ]; then
     echo "Error: Missing required environment variables."
-    echo "Required: PRIVATE_KEY, OPERATOR_ADDRESS, DATASET_IDS"
+    echo "Required: PRIVATE_KEY, FILBEAM_OPERATOR_ADDRESS, DATASET_IDS"
     echo "Optional: RPC_URL (default: localhost), BATCH_SIZE (default: 50)"
     echo ""
     echo "Example:"
     echo "  export DATASET_IDS=\"11291,11300,11305\""
-    echo "  export OPERATOR_ADDRESS=\"0x...\""
+    echo "  export FILBEAM_OPERATOR_ADDRESS=\"0x...\""
     echo "  export PRIVATE_KEY=\"0x...\""
-    echo "  ./tools/settle-sp.sh"
+    echo "  ./tools/settle-cache-miss-egress.sh"
     exit 1
 fi
 
 echo "--- FilBeam SP Settlement Tool ---"
 echo "RPC URL: $RPC_URL"
-echo "Operator: $OPERATOR_ADDRESS"
+echo "Operator: $FILBEAM_OPERATOR_ADDRESS"
 echo "Dataset IDs: $DATASET_IDS"
 echo "----------------------------------"
 
@@ -46,7 +46,7 @@ for dataset_id in "${INPUT_IDS[@]}"; do
     dataset_id=$(echo "$dataset_id" | tr -d '[:space:]')
 
     # Call dataSetUsage(uint256) -> (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch)
-    USAGE_RAW=$(cast call "$OPERATOR_ADDRESS" "dataSetUsage(uint256)(uint256,uint256,uint256)" "$dataset_id" --rpc-url "$RPC_URL" 2>&1) || {
+    USAGE_RAW=$(cast call "$FILBEAM_OPERATOR_ADDRESS" "dataSetUsage(uint256)(uint256,uint256,uint256)" "$dataset_id" --rpc-url "$RPC_URL" 2>&1) || {
         echo "  Dataset $dataset_id: failed to query usage, skipping."
         continue
     }
@@ -88,7 +88,7 @@ for ((i=0; i<TOTAL; i+=BATCH_SIZE)); do
     echo "  Dataset IDs: $BATCH_STR"
     echo "  Submitting transaction..."
     
-    TX_OUTPUT=$(cast send "$OPERATOR_ADDRESS" 'settleCacheMissPaymentRails(uint256[])' "$BATCH_STR" \
+    TX_OUTPUT=$(cast send "$FILBEAM_OPERATOR_ADDRESS" 'settleCacheMissPaymentRails(uint256[])' "$BATCH_STR" \
         --rpc-url "$RPC_URL" \
         --private-key "$PRIVATE_KEY" \
         --json 2>&1)

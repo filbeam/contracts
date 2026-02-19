@@ -1,6 +1,6 @@
 # Tutorial: SP Settlement Tool
 
-This guide explains how Service Providers (SPs) can use the `settle-sp.sh` tool to settle outstanding cache-miss usage amounts for their datasets.
+This guide explains how Service Providers (SPs) can use the `settle-cache-miss-egress.sh` tool to settle outstanding cache-miss usage amounts for their datasets.
 
 ## Prerequisites
 
@@ -24,7 +24,7 @@ Export the following variables in your terminal:
 ```bash
 export RPC_URL="https://your-rpc-url"
 export PRIVATE_KEY="0xyour_private_key"
-export OPERATOR_ADDRESS="0x..."        # FilBeamOperator contract address
+export FILBEAM_OPERATOR_ADDRESS="0x..." # FilBeamOperator contract address
 export DATASET_IDS="11291,11300,11305"  # Your dataset IDs (comma-separated)
 ```
 
@@ -32,12 +32,12 @@ export DATASET_IDS="11291,11300,11305"  # Your dataset IDs (comma-separated)
 
 1. **Make the script executable** (if not already):
    ```bash
-   chmod +x tools/settle-sp.sh
+   chmod +x tools/settle-cache-miss-egress.sh
    ```
 
 2. **Run the script**:
    ```bash
-   ./tools/settle-sp.sh
+   ./tools/settle-cache-miss-egress.sh
    ```
 
 ### What the tool does:
@@ -52,7 +52,7 @@ If you have many datasets, the script will submit multiple transactions sequenti
 To change the batch size:
 ```bash
 export BATCH_SIZE=25
-./tools/settle-sp.sh
+./tools/settle-cache-miss-egress.sh
 ```
 
 ## Troubleshooting

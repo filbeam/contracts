@@ -124,7 +124,7 @@ function setFilBeamOperatorController(address _filBeamOperatorController) extern
 
 ## SP Settlement Tooling
 
-Service Providers can use `tools/settle-sp.sh` to settle outstanding cache-miss amounts for their datasets.
+Service Providers can use `tools/settle-cache-miss-egress.sh` to settle outstanding cache-miss amounts for their datasets.
 
 ### Prerequisites
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (specifically `cast`)
@@ -135,13 +135,13 @@ Service Providers can use `tools/settle-sp.sh` to settle outstanding cache-miss 
 ```bash
 export RPC_URL="https://your-rpc-url"
 export PRIVATE_KEY="0xyour_private_key"
-export OPERATOR_ADDRESS="0x..."
+export FILBEAM_OPERATOR_ADDRESS="0x..."
 export DATASET_IDS="11291,11300,11305"
 
-./tools/settle-sp.sh
+./tools/settle-cache-miss-egress.sh
 ```
 
-For detailed instructions, see [TUTORIAL.md](TUTORIAL.md).
+For detailed instructions, see [TUTORIAL.md](tools/TUTORIAL.md).
 
 ### Cast
 
