@@ -24,12 +24,12 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 - FilBeamOperator controller cannot be zero address
 
 #### Data Structure
-**DataSetUsage Struct**:
-- `uint256 cdnAmount`: Accumulated CDN settlement amount between settlements (calculated at report time)
+**DataSetUsage Struct** (cache-miss accounting, keyed by `dataSetId`):
 - `uint256 cacheMissAmount`: Accumulated cache-miss settlement amount between settlements (calculated at report time)
 - `uint256 maxReportedEpoch`: Highest epoch number reported for this dataset (0 indicates uninitialized dataset)
-- `uint256 lastCDNSettlementEpoch`: Last epoch settled for CDN payment rail
-- `uint256 lastCacheMissSettlementEpoch`: Last epoch settled for cache-miss payment rail
+
+**Shared bandwidth accounting** (keyed by `cdnRailId`):
+- `mapping(uint256 cdnRailId => uint256 cdnAmount) cdnRailAmount`: Accumulated CDN (bandwidth) settlement amount between settlements, keyed by the shared bandwidth rail. Multiple datasets that belong to one CDN subscription resolve to the same `cdnRailId` (read from `FilecoinWarmStorageServiceStateView.getDataSet(dataSetId).cdnRailId`), so their bandwidth aggregates onto a single rail.
 
 #### Usage Reporting
 
@@ -61,28 +61,33 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Payment Rail Settlement
 
+**Method**: `settleCDNBandwidthRails(uint256[] cdnRailIds)`
+
+- **Access**: Publicly callable (anyone can trigger settlement)
+- **Purpose**: Canonical bandwidth settlement path. Settles shared CDN bandwidth rails directly by rail id, the shared `cdnRailId` is the subscription identity. The FilBeam worker meters bandwidth per rail and calls this with the distinct rail ids.
+- **Settlement Logic**: For each rail id, reads `cdnRailAmount[cdnRailId]`, settles `min(accumulated, rail.lockupFixed)` via FWSS `settleCDNBandwidthRail(cdnRailId, amount)`, and drains the settled amount. Skips rails with no accumulated bandwidth or no lockup.
+- **Events**: Emits `CDNSettlement(cdnRailId, cdnAmount)` with the actual settled amount.
+
 **Method**: `settleCDNPaymentRails(uint256[] dataSetIds)`
 
 - **Access**: Publicly callable (anyone can trigger settlement)
-- **Purpose**: Settles CDN payment rails for multiple datasets in a single transaction
-- **Calculation Period**: From last CDN settlement epoch + 1 to max reported epoch
+- **Purpose**: Convenience path equivalent to `settleCDNBandwidthRails`, but resolves each dataset to its shared `cdnRailId` first. Prefer `settleCDNBandwidthRails` when the rail ids are already known.
 - **Settlement Logic**:
-  - Retrieves rail ID from FWSS DataSetInfo
+  - Resolves each dataset to its shared `cdnRailId` via `FilecoinWarmStorageServiceStateView.getDataSet(dataSetId).cdnRailId`
+  - Reads the aggregated bandwidth accumulated on that rail (`cdnRailAmount[cdnRailId]`)
   - Fetches rail details from Payments contract to get `lockupFixed`
   - Calculates settleable amount: `min(accumulated_amount, rail.lockupFixed)`
-  - Only calls FWSS contract if settleable amount > 0
+  - Only calls FWSS `settleCDNBandwidthRail(cdnRailId, amount)` if settleable amount > 0
   - Reduces accumulated CDN amount by settled amount (may leave remainder)
-- **State Updates**:
-  - Update last CDN settlement epoch to max reported epoch
-  - Reduce accumulated amount by settled amount (not reset to zero if partial)
+- **Settle Once Per Rail**: Because grouped datasets share a `cdnRailId`, bandwidth is settled once per distinct rail with the summed amount. The rail balance is drained on the first settlement, so later datasets that share the same rail within the same call (or a later call) are skipped automatically.
 - **Requirements**: None - gracefully skips datasets that cannot be settled
 - **Batch Processing**:
   - Processes each dataset independently (non-reverting)
-  - Skips uninitialized datasets or those without new usage
-  - Skips datasets without valid rail configuration
+  - Skips datasets whose shared rail has no accumulated bandwidth
+  - Skips datasets without a configured `cdnRailId` (rail id 0)
   - Continues processing even if some datasets cannot be settled
 - **Partial Settlement**: Supports partial settlements when `accumulated_amount > lockupFixed`
-- **Events**: Emits `CDNSettlement` event with actual settled amount (may be less than accumulated)
+- **Events**: Emits `CDNSettlement(cdnRailId, cdnAmount)` with the actual settled amount (may be less than accumulated)
 - **Independent Operation**: Can be called independently of cache-miss settlement
 
 **Method**: `settleCacheMissPaymentRails(uint256[] dataSetIds)`
@@ -160,8 +165,8 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 
 #### Events
 - `UsageReported(uint256 indexed dataSetId, uint256 indexed fromEpoch, uint256 indexed toEpoch, uint256 cdnBytesUsed, uint256 cacheMissBytesUsed)`
-- `CDNSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cdnAmount)`
-- `CacheMissSettlement(uint256 indexed dataSetId, uint256 fromEpoch, uint256 toEpoch, uint256 cacheMissAmount)`
+- `CDNSettlement(uint256 indexed cdnRailId, uint256 cdnAmount)` (keyed by the shared bandwidth rail)
+- `CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount)` (keyed by data set)
 - `PaymentRailsTerminated(uint256 indexed dataSetId)`
 - `FilBeamOperatorControllerUpdated(address indexed oldController, address indexed newController)`
 - `FwssFilBeamControllerMigrated(address indexed previousController, address indexed newController)`
@@ -181,9 +186,14 @@ The Filecoin Beam (FilBeamOperator) contract is responsible for managing CDN (ca
 ### Filecoin Warm Storage Service (FWSS) Contract Interface
 
 **Method**: `settleFilBeamPaymentRails(uint256 dataSetId, uint256 cdnAmount, uint256 cacheMissAmount)`
-- **Purpose**: Settle CDN or cache-miss payment rails based on calculated amounts
+- **Purpose**: Settle the per-dataset cache-miss payment rail
 - **Access**: Callable only by FilBeamOperator contract
-- **Parameters**: Either cdnAmount or cacheMissAmount will be zero depending on settlement type
+- **Parameters**: FilBeamOperator always passes `cdnAmount = 0` so the bandwidth portion is never settled through this per-dataset path (it is settled through `settleCDNBandwidthRail` instead)
+
+**Method**: `settleCDNBandwidthRail(uint256 cdnRailId, uint256 cdnAmount)`
+- **Purpose**: Settle the shared CDN (bandwidth) payment rail once for a subscription
+- **Access**: Callable only by FilBeamOperator contract
+- **Parameters**: `cdnRailId` is the shared bandwidth rail (subscription identity), `cdnAmount` is the aggregated bandwidth across every dataset sharing that rail
 
 **Method**: `terminateCDNPaymentRails(uint256 dataSetId)`
 - **Purpose**: Terminate CDN payment rails for a specific dataset

@@ -7,9 +7,18 @@ import {FilecoinPayV1} from "@filecoin-pay/FilecoinPayV1.sol";
 import {FilecoinWarmStorageService} from "@filecoin-services/FilecoinWarmStorageService.sol";
 import {FilecoinWarmStorageServiceStateView} from "@filecoin-services/FilecoinWarmStorageServiceStateView.sol";
 
+/// @notice Minimal interface for the shared CDN bandwidth rail settlement added in FWSS.
+/// @dev The shared bandwidth rail is keyed by cdnRailId (the subscription identity), so it is
+/// settled once per rail rather than per data set. Cache miss continues to be settled per data
+/// set via FilecoinWarmStorageService.settleFilBeamPaymentRails.
+interface IFilBeamBandwidthSettlement {
+    function settleCDNBandwidthRail(uint256 cdnRailId, uint256 cdnAmount) external;
+}
+
 contract FilBeamOperator is Ownable2Step {
+    /// @notice Cache miss usage accounting, keyed by dataSetId.
+    /// @dev Cache miss rails stay per data set because each copy lives on a different provider.
     struct DataSetUsage {
-        uint256 cdnAmount;
         uint256 cacheMissAmount;
         uint256 maxReportedEpoch;
     }
@@ -21,7 +30,12 @@ contract FilBeamOperator is Ownable2Step {
     uint256 public immutable cacheMissRatePerByte;
     address public filBeamOperatorController;
 
-    mapping(uint256 => DataSetUsage) public dataSetUsage;
+    /// @notice Cache miss usage accumulated per data set between settlements.
+    mapping(uint256 dataSetId => DataSetUsage) public dataSetUsage;
+
+    /// @notice CDN (bandwidth) usage accumulated per shared bandwidth rail between settlements.
+    /// @dev Keyed by cdnRailId so data sets sharing a CDN subscription collapse into one rail.
+    mapping(uint256 cdnRailId => uint256 cdnAmount) public cdnRailAmount;
 
     event UsageReported(
         uint256 indexed dataSetId,
@@ -31,7 +45,7 @@ contract FilBeamOperator is Ownable2Step {
         uint256 cacheMissBytesUsed
     );
 
-    event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
+    event CDNSettlement(uint256 indexed cdnRailId, uint256 cdnAmount);
 
     event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
 
@@ -97,12 +111,26 @@ contract FilBeamOperator is Ownable2Step {
         }
     }
 
-    /// @notice Settles CDN payment rails for multiple data sets
-    /// @dev Anyone can call this function to trigger settlement
-    /// @param dataSetIds Array of data set IDs to settle
+    /// @notice Settles shared CDN bandwidth rails directly by rail id.
+    /// @dev Canonical bandwidth settlement path: the shared cdnRailId is the subscription identity,
+    /// so each rail is settled once with its aggregated amount. The FilBeam worker calls this with
+    /// the distinct cdnRailIds it has metered. Anyone can call it to trigger settlement.
+    /// @param cdnRailIds Array of shared CDN bandwidth rail ids to settle
+    function settleCDNBandwidthRails(uint256[] calldata cdnRailIds) external {
+        for (uint256 i = 0; i < cdnRailIds.length; i++) {
+            _settleCDNBandwidthRailById(cdnRailIds[i]);
+        }
+    }
+
+    /// @notice Settles the shared CDN bandwidth rails for multiple data sets.
+    /// @dev Convenience path that resolves each data set to its shared cdnRailId and settles once
+    /// per distinct rail with the aggregated amount. Because the rail balance is drained on the
+    /// first settlement, later data sets that share the same rail in this batch are skipped. Prefer
+    /// settleCDNBandwidthRails when the rail ids are already known. Anyone can call this.
+    /// @param dataSetIds Array of data set IDs whose shared bandwidth rails should be settled
     function settleCDNPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
-            _settlePaymentRail(dataSetIds[i], true);
+            _settleCDNBandwidthRail(dataSetIds[i]);
         }
     }
 
@@ -111,7 +139,7 @@ contract FilBeamOperator is Ownable2Step {
     /// @param dataSetIds Array of data set IDs to settle
     function settleCacheMissPaymentRails(uint256[] calldata dataSetIds) external {
         for (uint256 i = 0; i < dataSetIds.length; i++) {
-            _settlePaymentRail(dataSetIds[i], false);
+            _settleCacheMissRail(dataSetIds[i]);
         }
     }
 
@@ -169,21 +197,62 @@ contract FilBeamOperator is Ownable2Step {
         uint256 cdnAmount = cdnBytesUsed * cdnRatePerByte;
         uint256 cacheMissAmount = cacheMissBytesUsed * cacheMissRatePerByte;
 
-        usage.cdnAmount += cdnAmount;
+        // Cache miss accumulates per data set, bandwidth accumulates onto the shared CDN rail
+        // so grouped data sets aggregate into a single bandwidth settlement.
+        uint256 cdnRailId =
+            FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId).cdnRailId;
+        cdnRailAmount[cdnRailId] += cdnAmount;
+
         usage.cacheMissAmount += cacheMissAmount;
         usage.maxReportedEpoch = toEpoch;
 
         emit UsageReported(dataSetId, fromEpoch, toEpoch, cdnBytesUsed, cacheMissBytesUsed);
     }
 
-    /// @dev Internal function to settle a payment rail (CDN or cache miss)
+    /// @dev Resolves a data set to its shared bandwidth rail (the subscription identity) and settles it
+    /// @param dataSetId The data set ID whose shared bandwidth rail should be settled
+    function _settleCDNBandwidthRail(uint256 dataSetId) internal {
+        uint256 cdnRailId =
+            FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId).cdnRailId;
+        _settleCDNBandwidthRailById(cdnRailId);
+    }
+
+    /// @dev Settles a shared CDN bandwidth rail once with its aggregated amount
+    /// @param cdnRailId The shared bandwidth rail id (subscription identity)
+    function _settleCDNBandwidthRailById(uint256 cdnRailId) internal {
+        // Early return if no rail configured
+        if (cdnRailId == 0) {
+            return;
+        }
+
+        // Aggregated bandwidth across every data set sharing this rail
+        uint256 amount = cdnRailAmount[cdnRailId];
+
+        // Early return if no usage to settle (also collapses repeated rails in a batch)
+        if (amount == 0) {
+            return;
+        }
+
+        // Get the actual amount we can settle based on rail lockup
+        uint256 amountToSettle = _getSettleableAmount(cdnRailId, amount);
+
+        // Early return if nothing can be settled (no lockup available)
+        if (amountToSettle == 0) {
+            return;
+        }
+
+        // Settle the shared bandwidth rail once through FWSS
+        IFilBeamBandwidthSettlement(fwssContractAddress).settleCDNBandwidthRail(cdnRailId, amountToSettle);
+        cdnRailAmount[cdnRailId] -= amountToSettle;
+        emit CDNSettlement(cdnRailId, amountToSettle);
+    }
+
+    /// @dev Internal function to settle the cache miss rail for a data set
     /// @param dataSetId The data set ID to settle
-    /// @param isCDN True for CDN rail, false for cache miss rail
-    function _settlePaymentRail(uint256 dataSetId, bool isCDN) internal {
+    function _settleCacheMissRail(uint256 dataSetId) internal {
         DataSetUsage storage usage = dataSetUsage[dataSetId];
 
-        // Get the appropriate amount based on rail type
-        uint256 amount = isCDN ? usage.cdnAmount : usage.cacheMissAmount;
+        uint256 amount = usage.cacheMissAmount;
 
         // Early return if data set not initialized or no usage to settle
         if (usage.maxReportedEpoch == 0 || amount == 0) {
@@ -191,9 +260,8 @@ contract FilBeamOperator is Ownable2Step {
         }
 
         // Get rail ID from FWSS State View
-        FilecoinWarmStorageService.DataSetInfoView memory dsInfo =
-            FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId);
-        uint256 railId = isCDN ? dsInfo.cdnRailId : dsInfo.cacheMissRailId;
+        uint256 railId =
+            FilecoinWarmStorageServiceStateView(fwssStateViewContractAddress).getDataSet(dataSetId).cacheMissRailId;
 
         // Early return if no rail configured
         if (railId == 0) {
@@ -208,16 +276,11 @@ contract FilBeamOperator is Ownable2Step {
             return;
         }
 
-        // Settle the amount through FWSS
-        if (isCDN) {
-            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, amountToSettle, 0);
-            usage.cdnAmount -= amountToSettle;
-            emit CDNSettlement(dataSetId, amountToSettle);
-        } else {
-            FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
-            usage.cacheMissAmount -= amountToSettle;
-            emit CacheMissSettlement(dataSetId, amountToSettle);
-        }
+        // Settle cache miss per data set. cdnAmount is 0 so the bandwidth portion is never
+        // settled through the per-data-set path (it goes through settleCDNBandwidthRail instead).
+        FilecoinWarmStorageService(fwssContractAddress).settleFilBeamPaymentRails(dataSetId, 0, amountToSettle);
+        usage.cacheMissAmount -= amountToSettle;
+        emit CacheMissSettlement(dataSetId, amountToSettle);
     }
 
     /// @dev Internal helper to get the settleable amount based on rail lockup

@@ -22,6 +22,10 @@ contract FilBeamOperatorTest is Test {
 
     uint256 constant DATA_SET_ID_1 = 1;
     uint256 constant DATA_SET_ID_2 = 2;
+    uint256 constant CDN_RAIL_ID_1 = 1;
+    uint256 constant CACHE_MISS_RAIL_ID_1 = 2;
+    uint256 constant CDN_RAIL_ID_2 = 3;
+    uint256 constant CACHE_MISS_RAIL_ID_2 = 4;
     uint256 constant CDN_RATE_PER_BYTE = 100;
     uint256 constant CACHE_MISS_RATE_PER_BYTE = 200;
 
@@ -33,7 +37,7 @@ contract FilBeamOperatorTest is Test {
         uint256 cacheMissBytesUsed
     );
 
-    event CDNSettlement(uint256 indexed dataSetId, uint256 cdnAmount);
+    event CDNSettlement(uint256 indexed cdnRailId, uint256 cdnAmount);
 
     event CacheMissSettlement(uint256 indexed dataSetId, uint256 cacheMissAmount);
 
@@ -265,9 +269,9 @@ contract FilBeamOperatorTest is Test {
             1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
         );
 
-        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnAmount, 1000 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 1000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount, 500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 1);
     }
@@ -285,9 +289,9 @@ contract FilBeamOperatorTest is Test {
         );
         vm.stopPrank();
 
-        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnAmount, 4500 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 4500 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount, 2250 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 3);
     }
@@ -345,22 +349,47 @@ contract FilBeamOperatorTest is Test {
         vm.stopPrank();
 
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_1, 300000);
+        emit CDNSettlement(CDN_RAIL_ID_1, 300000);
 
         vm.prank(user1);
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnAmount, 0);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
         assertEq(cacheMissAmount, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, 2);
 
-        assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 settledCdnAmount, uint256 settledCacheMissAmount,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId, DATA_SET_ID_1);
+        // Bandwidth settles via the shared-rail path, not the per-data-set path
+        assertEq(mockFWSS.getSettlementsCount(), 0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (uint256 cdnRailId, uint256 settledCdnAmount,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(cdnRailId, CDN_RAIL_ID_1);
         assertEq(settledCdnAmount, 300000);
-        assertEq(settledCacheMissAmount, 0);
+    }
+
+    function test_SettleCDNBandwidthRailsByRailId() public {
+        vm.startPrank(filBeamOperatorController);
+        filBeam.recordUsageRollups(
+            1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
+        );
+        filBeam.recordUsageRollups(
+            2, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(2000), _singleUint256Array(1000)
+        );
+        vm.stopPrank();
+
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(CDN_RAIL_ID_1, 300000);
+
+        // Canonical path: settle by rail id directly (what the FilBeam worker calls)
+        vm.prank(user1);
+        filBeam.settleCDNBandwidthRails(_singleUint256Array(CDN_RAIL_ID_1));
+
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (uint256 cdnRailId, uint256 settledCdnAmount,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(cdnRailId, CDN_RAIL_ID_1);
+        assertEq(settledCdnAmount, 300000);
     }
 
     function test_SettleCacheMissPaymentRail() public {
@@ -379,9 +408,9 @@ contract FilBeamOperatorTest is Test {
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnAmount, 3000 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 3000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount, 0);
         assertEq(maxReportedEpoch, 2);
 
@@ -407,18 +436,18 @@ contract FilBeamOperatorTest is Test {
             1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
         );
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 1);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
 
         // Should not revert, just return early without additional settlements
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1); // Still 1, no new settlement
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 2);
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
         // Should not revert, just return early without additional settlements
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 2); // Still 2, no new settlement
+        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
     }
 
     function test_TerminateCDNPaymentRails() public {
@@ -486,16 +515,16 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_2));
 
-        assertEq(mockFWSS.getSettlementsCount(), 2);
-
-        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
-            mockFWSS.getSettlement(0);
-        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        // DS1 bandwidth settles via the shared-rail path
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (uint256 settledCdnRailId, uint256 settledCdnAmount1,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(settledCdnRailId, CDN_RAIL_ID_1);
         assertEq(settledCdnAmount1, 100000);
-        assertEq(settledCacheMissAmount1, 0);
 
+        // DS2 cache miss settles per data set
+        assertEq(mockFWSS.getSettlementsCount(), 1);
         (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
-            mockFWSS.getSettlement(1);
+            mockFWSS.getSettlement(0);
         assertEq(settledDataSetId2, DATA_SET_ID_2);
         assertEq(settledCdnAmount2, 0);
         assertEq(settledCacheMissAmount2, 200000);
@@ -518,9 +547,10 @@ contract FilBeamOperatorTest is Test {
         );
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        assertEq(mockFWSS.getSettlementsCount(), 2);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
-        (,, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (, uint256 maxReportedEpoch) = filBeam.dataSetUsage(DATA_SET_ID_1);
         assertEq(maxReportedEpoch, 3);
     }
 
@@ -537,9 +567,12 @@ contract FilBeamOperatorTest is Test {
             epoch, _singleUint256Array(dataSetId), _singleUint256Array(cdnBytes), _singleUint256Array(cacheMissBytes)
         );
 
-        (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(dataSetId);
+        (uint256 cacheMissAmount, uint256 maxReportedEpoch) = filBeam.dataSetUsage(dataSetId);
 
-        assertEq(cdnAmount, cdnBytes * CDN_RATE_PER_BYTE);
+        // Fuzzed data sets are not configured in the mock state view, so they resolve to
+        // cdnRailId 0 and bandwidth accumulates onto that rail.
+        uint256 cdnRailId = mockStateView.getDataSet(dataSetId).cdnRailId;
+        assertEq(filBeam.cdnRailAmount(cdnRailId), cdnBytes * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount, cacheMissBytes * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch, epoch);
     }
@@ -554,7 +587,7 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // No external call should be made when amount is 0
-        assertEq(mockFWSS.getSettlementsCount(), 0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 0);
     }
 
     function test_IndependentSettlement() public {
@@ -572,7 +605,7 @@ contract FilBeamOperatorTest is Test {
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (, uint256 cacheMissAmount1, uint256 maxReportedEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount1, uint256 maxReportedEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
         assertEq(cacheMissAmount1, 2250 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxReportedEpoch1, 3);
 
@@ -583,21 +616,20 @@ contract FilBeamOperatorTest is Test {
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxReportedEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount2, 800 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount2, uint256 maxReportedEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 800 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount2, 0);
         assertEq(maxReportedEpoch2, 4);
 
-        assertEq(mockFWSS.getSettlementsCount(), 2);
-
-        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
-            mockFWSS.getSettlement(0);
-        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        // CDN settled once via the shared-rail path, cache miss once via the per-data-set path
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (uint256 settledCdnRailId, uint256 settledCdnAmount1,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(settledCdnRailId, CDN_RAIL_ID_1);
         assertEq(settledCdnAmount1, 450000);
-        assertEq(settledCacheMissAmount1, 0);
 
+        assertEq(mockFWSS.getSettlementsCount(), 1);
         (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
-            mockFWSS.getSettlement(1);
+            mockFWSS.getSettlement(0);
         assertEq(settledDataSetId2, DATA_SET_ID_1);
         assertEq(settledCdnAmount2, 0);
         assertEq(settledCacheMissAmount2, 530000);
@@ -610,12 +642,11 @@ contract FilBeamOperatorTest is Test {
         );
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) = mockFWSS.getSettlement(0);
+        (, uint256 settledCdnAmount1,) = mockFWSS.getBandwidthSettlement(0);
         assertEq(settledCdnAmount1, 1000 * CDN_RATE_PER_BYTE);
-        assertEq(settledCacheMissAmount1, 0);
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        (, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) = mockFWSS.getSettlement(1);
+        (, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) = mockFWSS.getSettlement(0);
         assertEq(settledCdnAmount2, 0);
         assertEq(settledCacheMissAmount2, 500 * CACHE_MISS_RATE_PER_BYTE);
     }
@@ -641,8 +672,8 @@ contract FilBeamOperatorTest is Test {
         vm.prank(filBeamOperatorController);
         filBeam.recordUsageRollups(1, dataSetIds, cdnBytesUsed, cacheMissBytesUsed);
 
-        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 1000 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 1000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1, 1);
 
@@ -652,13 +683,13 @@ contract FilBeamOperatorTest is Test {
             2, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(2000), _singleUint256Array(1000)
         );
 
-        (uint256 cdnAmount1_v2, uint256 cacheMissAmount1_v2, uint256 maxEpoch1_v2) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1_v2, 3000 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount1_v2, uint256 maxEpoch1_v2) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 3000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount1_v2, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1_v2, 2);
 
-        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnAmount2, 1500 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_2), 1500 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount2, 750 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch2, 1);
     }
@@ -760,11 +791,10 @@ contract FilBeamOperatorTest is Test {
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        assertEq(mockFWSS.getSettlementsCount(), 1);
-        (uint256 dataSetId, uint256 settledCdnAmount, uint256 settledCacheMissAmount,) = mockFWSS.getSettlement(0);
-        assertEq(dataSetId, DATA_SET_ID_1);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (uint256 cdnRailId, uint256 settledCdnAmount,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(cdnRailId, CDN_RAIL_ID_1);
         assertEq(settledCdnAmount, 300000);
-        assertEq(settledCacheMissAmount, 0);
     }
 
     function test_ReportUsageRollupBatchAtomicity() public {
@@ -788,9 +818,9 @@ contract FilBeamOperatorTest is Test {
         vm.expectRevert(InvalidEpoch.selector);
         filBeam.recordUsageRollups(0, dataSetIds, cdnBytesUsed, cacheMissBytesUsed);
 
-        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxReportedEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount1, uint256 maxReportedEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
 
-        assertEq(cdnAmount1, 0);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
         assertEq(cacheMissAmount1, 0);
         assertEq(maxReportedEpoch1, 0);
     }
@@ -813,35 +843,32 @@ contract FilBeamOperatorTest is Test {
         dataSetIds[1] = DATA_SET_ID_2;
 
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_1, 300000);
+        emit CDNSettlement(CDN_RAIL_ID_1, 300000);
         vm.expectEmit(true, false, false, true);
-        emit CDNSettlement(DATA_SET_ID_2, 150000);
+        emit CDNSettlement(CDN_RAIL_ID_2, 150000);
 
         vm.prank(user1);
         filBeam.settleCDNPaymentRails(dataSetIds);
 
-        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 0);
+        (uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
         assertEq(cacheMissAmount1, 1500 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch1, 2);
 
-        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnAmount2, 0);
+        (uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_2), 0);
         assertEq(cacheMissAmount2, 750 * CACHE_MISS_RATE_PER_BYTE);
         assertEq(maxEpoch2, 1);
 
-        assertEq(mockFWSS.getSettlementsCount(), 2);
-        (uint256 settledDataSetId1, uint256 settledCdnAmount1, uint256 settledCacheMissAmount1,) =
-            mockFWSS.getSettlement(0);
-        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        // Distinct rails settle independently via the shared-rail path
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 2);
+        (uint256 settledCdnRailId1, uint256 settledCdnAmount1,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(settledCdnRailId1, CDN_RAIL_ID_1);
         assertEq(settledCdnAmount1, 300000);
-        assertEq(settledCacheMissAmount1, 0);
 
-        (uint256 settledDataSetId2, uint256 settledCdnAmount2, uint256 settledCacheMissAmount2,) =
-            mockFWSS.getSettlement(1);
-        assertEq(settledDataSetId2, DATA_SET_ID_2);
+        (uint256 settledCdnRailId2, uint256 settledCdnAmount2,) = mockFWSS.getBandwidthSettlement(1);
+        assertEq(settledCdnRailId2, CDN_RAIL_ID_2);
         assertEq(settledCdnAmount2, 150000);
-        assertEq(settledCacheMissAmount2, 0);
     }
 
     function test_SettleCacheMissPaymentRailBatch() public {
@@ -869,13 +896,13 @@ contract FilBeamOperatorTest is Test {
         vm.prank(user1);
         filBeam.settleCacheMissPaymentRails(dataSetIds);
 
-        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 3000 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 3000 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount1, 0);
         assertEq(maxEpoch1, 2);
 
-        (uint256 cdnAmount2, uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnAmount2, 1500 * CDN_RATE_PER_BYTE);
+        (uint256 cacheMissAmount2, uint256 maxEpoch2) = filBeam.dataSetUsage(DATA_SET_ID_2);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_2), 1500 * CDN_RATE_PER_BYTE);
         assertEq(cacheMissAmount2, 0);
         assertEq(maxEpoch2, 1);
 
@@ -896,7 +923,7 @@ contract FilBeamOperatorTest is Test {
     function test_SettleCDNPaymentRailBatchEmptyArray() public {
         uint256[] memory dataSetIds = new uint256[](0);
         filBeam.settleCDNPaymentRails(dataSetIds);
-        assertEq(mockFWSS.getSettlementsCount(), 0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 0);
     }
 
     function test_SettleCacheMissPaymentRailBatchEmptyArray() public {
@@ -911,7 +938,7 @@ contract FilBeamOperatorTest is Test {
 
         // Should not revert, just return early without settlements
         filBeam.settleCDNPaymentRails(dataSetIds);
-        assertEq(mockFWSS.getSettlementsCount(), 0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 0);
     }
 
     function test_SettleCacheMissPaymentRailBatchDataSetNotInitialized() public {
@@ -929,14 +956,14 @@ contract FilBeamOperatorTest is Test {
             1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
         );
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 1);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
 
         uint256[] memory dataSetIds = new uint256[](1);
         dataSetIds[0] = DATA_SET_ID_1;
 
         // Should not revert, just return early without new settlements
         filBeam.settleCDNPaymentRails(dataSetIds);
-        assertEq(mockFWSS.getSettlementsCount(), 1); // Still 1, no new settlement
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1); // Still 1, no new settlement
     }
 
     function test_SettleCacheMissPaymentRailBatchNoUsageToSettle() public {
@@ -957,9 +984,12 @@ contract FilBeamOperatorTest is Test {
 
     function test_SilentEarlyReturnsNoEvents() public {
         // Test 1: Uninitialized dataset should not revert or change state
+        uint256 initialBandwidthCount = mockFWSS.getBandwidthSettlementsCount();
         uint256 initialSettlementCount = mockFWSS.getSettlementsCount();
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount, "Should not settle uninitialized dataset");
+        assertEq(
+            mockFWSS.getBandwidthSettlementsCount(), initialBandwidthCount, "Should not settle uninitialized dataset"
+        );
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
         assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount, "Should not settle uninitialized dataset");
@@ -972,11 +1002,13 @@ contract FilBeamOperatorTest is Test {
 
         // Settle once (should work)
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount + 1, "Should settle first time");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), initialBandwidthCount + 1, "Should settle first time");
 
         // Test 2: Already settled dataset should not create new settlements
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), initialSettlementCount + 1, "Should not settle when no new usage");
+        assertEq(
+            mockFWSS.getBandwidthSettlementsCount(), initialBandwidthCount + 1, "Should not settle when no new usage"
+        );
     }
 
     function test_SettlementBatchMixedInitialization() public {
@@ -994,12 +1026,12 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(dataSetIds);
 
         // Verify DATA_SET_ID_1 was settled
-        (uint256 cdnAmount1, uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 0); // Settled, so amount is 0
+        (uint256 cacheMissAmount1, uint256 maxEpoch1) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0); // Settled, so amount is 0
         assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE); // Not settled yet
         assertEq(maxEpoch1, 1);
 
-        assertEq(mockFWSS.getSettlementsCount(), 1); // Only DATA_SET_ID_1 was settled
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1); // Only DATA_SET_ID_1 was settled
     }
 
     function test_SetFilBeamController() public {
@@ -1042,8 +1074,7 @@ contract FilBeamOperatorTest is Test {
             1, _singleUint256Array(DATA_SET_ID_1), _singleUint256Array(1000), _singleUint256Array(500)
         );
 
-        (uint256 cdnAmount,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount, 1000 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 1000 * CDN_RATE_PER_BYTE);
     }
 
     // Test settling accumulated amounts without new usage
@@ -1062,7 +1093,8 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Verify initial settlements
-        assertEq(mockFWSS.getSettlementsCount(), 2);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        assertEq(mockFWSS.getSettlementsCount(), 1);
 
         // Manually add accumulated amounts (simulating partial settlement scenario)
         // This would happen if the previous settlement was limited by lockupFixed
@@ -1078,16 +1110,15 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Verify CDN was settled
-        assertEq(mockFWSS.getSettlementsCount(), 3);
-        (uint256 cdnAmount,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount, 0, "CDN amount should be fully settled");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 2);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0, "CDN amount should be fully settled");
 
         // Settle cache miss without new usage report
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Verify cache miss was settled
-        assertEq(mockFWSS.getSettlementsCount(), 4);
-        (, uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+        (uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_1);
         assertEq(cacheMissAmount, 0, "Cache miss amount should be fully settled");
     }
 
@@ -1116,14 +1147,14 @@ contract FilBeamOperatorTest is Test {
 
         // Try to settle - should not revert or settle
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_2));
-        assertEq(mockFWSS.getSettlementsCount(), 0, "Should not settle without rail");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 0, "Should not settle without rail");
 
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_2));
         assertEq(mockFWSS.getSettlementsCount(), 0, "Should not settle without rail");
 
-        // Amount should still be accumulated
-        (uint256 cdnAmount, uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_2);
-        assertEq(cdnAmount, 100000, "Amount should still be accumulated");
+        // Amount should still be accumulated (bandwidth lands on rail id 0 with no rail configured)
+        (uint256 cacheMissAmount,) = filBeam.dataSetUsage(DATA_SET_ID_2);
+        assertEq(filBeam.cdnRailAmount(0), 100000, "Amount should still be accumulated");
         assertEq(cacheMissAmount, 100000, "Amount should still be accumulated");
     }
 
@@ -1143,55 +1174,54 @@ contract FilBeamOperatorTest is Test {
         );
 
         // Check accumulated amounts
-        (uint256 cdnAmount1, uint256 cacheMissAmount1,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 100000, "Should have 100k CDN amount");
+        (uint256 cacheMissAmount1,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 100000, "Should have 100k CDN amount");
         assertEq(cacheMissAmount1, 100000, "Should have 100k cache miss amount");
 
         // First CDN settlement - should only settle 50k due to lockup limit
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Check remaining amount after partial settlement
-        (uint256 cdnAmount2, uint256 cacheMissAmount2,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount2, 50000, "Should have 50k CDN remaining after partial settlement");
+        (uint256 cacheMissAmount2,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 50000, "Should have 50k CDN remaining after partial settlement");
         assertEq(cacheMissAmount2, 100000, "Cache miss amount should be unchanged");
 
         // Verify settlement amount
-        assertEq(mockFWSS.getSettlementsCount(), 1);
-        (, uint256 settledCdn1,,) = mockFWSS.getSettlement(0);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (, uint256 settledCdn1,) = mockFWSS.getBandwidthSettlement(0);
         assertEq(settledCdn1, 50000, "Should have settled 50k CDN");
 
         // First cache miss settlement - should only settle 30k due to lockup limit
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Check remaining amount after partial settlement
-        (uint256 cdnAmount3, uint256 cacheMissAmount3,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount3, 50000, "CDN amount should be unchanged");
+        (uint256 cacheMissAmount3,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 50000, "CDN amount should be unchanged");
         assertEq(cacheMissAmount3, 70000, "Should have 70k cache miss remaining after partial settlement");
 
         // Verify settlement amount
-        assertEq(mockFWSS.getSettlementsCount(), 2);
-        (,, uint256 settledCacheMiss1,) = mockFWSS.getSettlement(1);
+        assertEq(mockFWSS.getSettlementsCount(), 1);
+        (,, uint256 settledCacheMiss1,) = mockFWSS.getSettlement(0);
         assertEq(settledCacheMiss1, 30000, "Should have settled 30k cache miss");
 
         // Second CDN settlement - should settle remaining 50k
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (uint256 cdnAmount4,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount4, 0, "Should have no CDN remaining after second settlement");
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0, "Should have no CDN remaining after second settlement");
 
-        assertEq(mockFWSS.getSettlementsCount(), 3);
-        (, uint256 settledCdn2,,) = mockFWSS.getSettlement(2);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 2);
+        (, uint256 settledCdn2,) = mockFWSS.getBandwidthSettlement(1);
         assertEq(settledCdn2, 50000, "Should have settled remaining 50k CDN");
 
         // Increase lockup and settle remaining cache miss
         mockPayments.setLockupFixed(2, 100000); // Increase cache miss rail lockup
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        (, uint256 cacheMissAmount4,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount4,) = filBeam.dataSetUsage(DATA_SET_ID_1);
         assertEq(cacheMissAmount4, 0, "Should have no cache miss remaining");
 
-        assertEq(mockFWSS.getSettlementsCount(), 4);
-        (,, uint256 settledCacheMiss2,) = mockFWSS.getSettlement(3);
+        assertEq(mockFWSS.getSettlementsCount(), 2);
+        (,, uint256 settledCacheMiss2,) = mockFWSS.getSettlement(1);
         assertEq(settledCacheMiss2, 70000, "Should have settled remaining 70k cache miss");
     }
 
@@ -1207,11 +1237,10 @@ contract FilBeamOperatorTest is Test {
 
         // Try to settle - should not settle anything due to zero lockup
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 0, "Should not settle with zero lockup");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 0, "Should not settle with zero lockup");
 
         // Amount should still be accumulated
-        (uint256 cdnAmount,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount, 100000, "Amount should still be accumulated");
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 100000, "Amount should still be accumulated");
     }
 
     function test_SettlementWithInactiveRail() public {
@@ -1229,18 +1258,16 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Amount should still be accumulated
-        (uint256 cdnAmount,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount, 100000, "Amount should still be accumulated");
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 100000, "Amount should still be accumulated");
 
         // Reactivate rail and verify settlement works
         mockPayments.setRailExists(1, true);
         mockPayments.setLockupFixed(1, 100000);
 
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 1, "Should settle after reactivation");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1, "Should settle after reactivation");
 
-        (uint256 cdnAmountAfter,,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmountAfter, 0, "Amount should be settled");
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0, "Amount should be settled");
     }
 
     // Test multiple partial settlements without new usage
@@ -1258,9 +1285,10 @@ contract FilBeamOperatorTest is Test {
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
-        assertEq(mockFWSS.getSettlementsCount(), 2);
-        (uint256 cdnAmount1, uint256 cacheMissAmount1,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount1, 0, "CDN amount should be 0 after first settlement");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        assertEq(mockFWSS.getSettlementsCount(), 1);
+        (uint256 cacheMissAmount1,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0, "CDN amount should be 0 after first settlement");
         assertEq(cacheMissAmount1, 0, "Cache miss amount should be 0 after first settlement");
 
         // Simulate accumulated amounts from a partial settlement
@@ -1276,26 +1304,28 @@ contract FilBeamOperatorTest is Test {
 
         // Second settlement - should settle new amounts
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 3);
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 2);
 
         // Try to settle CDN again without new usage - should not create new settlement
-        uint256 settlementCountBefore = mockFWSS.getSettlementsCount();
+        uint256 bandwidthCountBefore = mockFWSS.getBandwidthSettlementsCount();
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), settlementCountBefore, "Should not settle when no amount");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), bandwidthCountBefore, "Should not settle when no amount");
 
         // Settle cache miss
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        assertEq(mockFWSS.getSettlementsCount(), 4);
+        assertEq(mockFWSS.getSettlementsCount(), 2);
 
         // Verify final state
-        (uint256 cdnAmount2, uint256 cacheMissAmount2,) = filBeam.dataSetUsage(DATA_SET_ID_1);
-        assertEq(cdnAmount2, 0, "CDN amount should be 0 after all settlements");
+        (uint256 cacheMissAmount2,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0, "CDN amount should be 0 after all settlements");
         assertEq(cacheMissAmount2, 0, "Cache miss amount should be 0 after all settlements");
 
         // Try settling again - should not create new settlements
+        uint256 finalBandwidthCount = mockFWSS.getBandwidthSettlementsCount();
         uint256 finalCount = mockFWSS.getSettlementsCount();
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), finalBandwidthCount, "No new settlements when no amount");
         assertEq(mockFWSS.getSettlementsCount(), finalCount, "No new settlements when no amount");
     }
 
@@ -1326,13 +1356,15 @@ contract FilBeamOperatorTest is Test {
 
         // Try to settle - should not revert or settle
         uint256 settlementCountBefore = mockFWSS.getSettlementsCount();
+        uint256 bandwidthCountBefore = mockFWSS.getBandwidthSettlementsCount();
         filBeam.settleCDNPaymentRails(_singleUint256Array(dataSetId3));
         filBeam.settleCacheMissPaymentRails(_singleUint256Array(dataSetId3));
         assertEq(mockFWSS.getSettlementsCount(), settlementCountBefore, "Should not settle with rail ID 0");
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), bandwidthCountBefore, "Should not settle with rail ID 0");
 
-        // Amount should still be accumulated
-        (uint256 cdnAmount, uint256 cacheMissAmount,) = filBeam.dataSetUsage(dataSetId3);
-        assertEq(cdnAmount, 100000, "CDN amount should still be accumulated");
+        // Amount should still be accumulated (bandwidth lands on rail id 0 with no rail configured)
+        (uint256 cacheMissAmount,) = filBeam.dataSetUsage(dataSetId3);
+        assertEq(filBeam.cdnRailAmount(0), 100000, "CDN amount should still be accumulated");
         assertEq(cacheMissAmount, 100000, "Cache miss amount should still be accumulated");
     }
 
@@ -1436,7 +1468,7 @@ contract FilBeamOperatorTest is Test {
         newOperator.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Verify settlement was successful
-        assertGt(mockFWSS.getSettlementsCount(), 0, "Settlement should have occurred");
+        assertGt(mockFWSS.getBandwidthSettlementsCount(), 0, "Settlement should have occurred");
     }
 
     function test_TransferFwssFilBeamController_IntegrationFlow() public {
@@ -1458,7 +1490,7 @@ contract FilBeamOperatorTest is Test {
 
         // 2. Settle partially with old operator (this works)
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
-        uint256 settlementCountBefore = mockFWSS.getSettlementsCount();
+        uint256 bandwidthCountBefore = mockFWSS.getBandwidthSettlementsCount();
 
         // 3. Old operator records more usage (to have accumulated amount after migration)
         vm.prank(filBeamOperatorController);
@@ -1480,10 +1512,129 @@ contract FilBeamOperatorTest is Test {
         newOperator.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
 
         // Verify settlements occurred
-        assertGt(mockFWSS.getSettlementsCount(), settlementCountBefore, "New settlement should have occurred");
+        assertGt(mockFWSS.getBandwidthSettlementsCount(), bandwidthCountBefore, "New settlement should have occurred");
 
         // 7. Old operator cannot settle anymore (has accumulated amount but can't settle to FWSS)
         vm.expectRevert(MockFWSS.UnauthorizedCaller.selector);
         filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+    }
+
+    // ============ Shared CDN bandwidth rail (subscription) tests ============
+
+    /// @dev Points DATA_SET_ID_2 at the same shared bandwidth rail as DATA_SET_ID_1, while
+    /// keeping its own cache miss rail. This mirrors a multi-copy upload that joins one CDN
+    /// subscription.
+    function _shareCdnRail() internal {
+        FilecoinWarmStorageService.DataSetInfoView memory dsInfo2 = FilecoinWarmStorageService.DataSetInfoView({
+            pdpRailId: 0,
+            cacheMissRailId: CACHE_MISS_RAIL_ID_2,
+            cdnRailId: CDN_RAIL_ID_1, // shared with DATA_SET_ID_1
+            payer: user1,
+            payee: user2,
+            serviceProvider: address(0),
+            commissionBps: 0,
+            clientDataSetId: 0,
+            pdpEndEpoch: 0,
+            providerId: 0,
+            dataSetId: DATA_SET_ID_2
+        });
+        mockStateView.setDataSetInfo(DATA_SET_ID_2, dsInfo2);
+    }
+
+    function test_SharedRailAccumulatesBandwidthOntoOneRail() public {
+        _shareCdnRail();
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        uint256[] memory cdnBytesUsed = new uint256[](2);
+        uint256[] memory cacheMissBytesUsed = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+        dataSetIds[1] = DATA_SET_ID_2;
+        cdnBytesUsed[1] = 1500;
+        cacheMissBytesUsed[1] = 750;
+
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(1, dataSetIds, cdnBytesUsed, cacheMissBytesUsed);
+
+        // Bandwidth from both data sets collapses onto the shared rail
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 2500 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_2), 0);
+
+        // Cache miss stays per data set
+        (uint256 cacheMissAmount1,) = filBeam.dataSetUsage(DATA_SET_ID_1);
+        (uint256 cacheMissAmount2,) = filBeam.dataSetUsage(DATA_SET_ID_2);
+        assertEq(cacheMissAmount1, 500 * CACHE_MISS_RATE_PER_BYTE);
+        assertEq(cacheMissAmount2, 750 * CACHE_MISS_RATE_PER_BYTE);
+    }
+
+    function test_SharedRailSettlesBandwidthOnceWithSummedAmount() public {
+        _shareCdnRail();
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        uint256[] memory cdnBytesUsed = new uint256[](2);
+        uint256[] memory cacheMissBytesUsed = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+        dataSetIds[1] = DATA_SET_ID_2;
+        cdnBytesUsed[1] = 1500;
+        cacheMissBytesUsed[1] = 750;
+
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(1, dataSetIds, cdnBytesUsed, cacheMissBytesUsed);
+
+        // The shared rail is settled exactly once with the summed amount, even though both
+        // data sets are passed in.
+        vm.expectEmit(true, false, false, true);
+        emit CDNSettlement(CDN_RAIL_ID_1, 2500 * CDN_RATE_PER_BYTE);
+
+        filBeam.settleCDNPaymentRails(dataSetIds);
+
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1, "bandwidth settled once for the shared rail");
+        (uint256 cdnRailId, uint256 settledCdnAmount,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(cdnRailId, CDN_RAIL_ID_1);
+        assertEq(settledCdnAmount, 2500 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
+
+        // Cache miss settles per data set: two settlements, one per provider rail
+        filBeam.settleCacheMissPaymentRails(dataSetIds);
+        assertEq(mockFWSS.getSettlementsCount(), 2, "cache miss settled per data set");
+
+        (uint256 settledDataSetId1,, uint256 settledCacheMiss1,) = mockFWSS.getSettlement(0);
+        assertEq(settledDataSetId1, DATA_SET_ID_1);
+        assertEq(settledCacheMiss1, 500 * CACHE_MISS_RATE_PER_BYTE);
+
+        (uint256 settledDataSetId2,, uint256 settledCacheMiss2,) = mockFWSS.getSettlement(1);
+        assertEq(settledDataSetId2, DATA_SET_ID_2);
+        assertEq(settledCacheMiss2, 750 * CACHE_MISS_RATE_PER_BYTE);
+    }
+
+    function test_SharedRailSettlesOnceWhenOnlyOneMemberPassed() public {
+        _shareCdnRail();
+
+        uint256[] memory dataSetIds = new uint256[](2);
+        uint256[] memory cdnBytesUsed = new uint256[](2);
+        uint256[] memory cacheMissBytesUsed = new uint256[](2);
+        dataSetIds[0] = DATA_SET_ID_1;
+        cdnBytesUsed[0] = 1000;
+        cacheMissBytesUsed[0] = 500;
+        dataSetIds[1] = DATA_SET_ID_2;
+        cdnBytesUsed[1] = 1500;
+        cacheMissBytesUsed[1] = 750;
+
+        vm.prank(filBeamOperatorController);
+        filBeam.recordUsageRollups(1, dataSetIds, cdnBytesUsed, cacheMissBytesUsed);
+
+        // Settling just one member of the subscription drains the whole shared rail
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_2));
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1);
+        (, uint256 settledCdnAmount,) = mockFWSS.getBandwidthSettlement(0);
+        assertEq(settledCdnAmount, 2500 * CDN_RATE_PER_BYTE);
+        assertEq(filBeam.cdnRailAmount(CDN_RAIL_ID_1), 0);
+
+        // Settling the sibling afterwards is a no-op for bandwidth
+        filBeam.settleCDNPaymentRails(_singleUint256Array(DATA_SET_ID_1));
+        assertEq(mockFWSS.getBandwidthSettlementsCount(), 1, "no second bandwidth settlement");
     }
 }

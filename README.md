@@ -118,8 +118,9 @@ function setFilBeamOperatorController(address _filBeamOperatorController) extern
 - **Partial Settlements**: Supports partial settlements when accumulated amount exceeds payment rail's `lockupFixed`
 
 ### Rail Settlement 
-- **Independent Tracking**: CDN and cache-miss settlements tracked separately
-- **Epoch-Based**: Settlement periods defined by epoch ranges
+- **Independent Tracking**: CDN (bandwidth) and cache-miss settlements tracked separately
+- **Shared Bandwidth Rail**: Bandwidth is accumulated and settled per `cdnRailId` (the CDN subscription identity). Datasets that share a subscription resolve to the same `cdnRailId` and settle bandwidth once with the summed amount via `settleCDNBandwidthRail`
+- **Per-Dataset Cache-Miss**: Cache-miss is accumulated and settled per `dataSetId` via `settleFilBeamPaymentRails(dataSetId, 0, cacheMissAmount)`
 - **Accumulative**: Usage accumulates between settlements
 
 ## SP Settlement Tooling
