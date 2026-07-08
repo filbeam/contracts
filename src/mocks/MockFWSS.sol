@@ -9,13 +9,21 @@ contract MockFWSS {
         uint256 timestamp;
     }
 
+    struct BandwidthSettlement {
+        uint256 cdnRailId;
+        uint256 cdnAmount;
+        uint256 timestamp;
+    }
+
     Settlement[] public settlements;
+    BandwidthSettlement[] public bandwidthSettlements;
     mapping(uint256 => bool) public terminatedDataSets;
     address public authorizedCaller;
     address public usdfcTokenAddress;
     address public paymentsContractAddress;
 
     event PaymentRailsSettled(uint256 indexed dataSetId, uint256 cdnAmount, uint256 cacheMissAmount);
+    event CDNBandwidthRailSettled(uint256 indexed cdnRailId, uint256 cdnAmount);
     event PaymentRailsTerminated(uint256 indexed dataSetId);
     event FilBeamControllerChanged(address indexed oldController, address indexed newController);
 
@@ -55,6 +63,14 @@ contract MockFWSS {
         emit PaymentRailsSettled(dataSetId, cdnAmount, cacheMissAmount);
     }
 
+    function settleCDNBandwidthRail(uint256 cdnRailId, uint256 cdnAmount) external onlyAuthorized {
+        bandwidthSettlements.push(
+            BandwidthSettlement({cdnRailId: cdnRailId, cdnAmount: cdnAmount, timestamp: block.timestamp})
+        );
+
+        emit CDNBandwidthRailSettled(cdnRailId, cdnAmount);
+    }
+
     function terminateCDNService(uint256 dataSetId) external onlyAuthorized {
         terminatedDataSets[dataSetId] = true;
         emit PaymentRailsTerminated(dataSetId);
@@ -71,6 +87,19 @@ contract MockFWSS {
     {
         Settlement storage settlement = settlements[index];
         return (settlement.dataSetId, settlement.cdnAmount, settlement.cacheMissAmount, settlement.timestamp);
+    }
+
+    function getBandwidthSettlementsCount() external view returns (uint256) {
+        return bandwidthSettlements.length;
+    }
+
+    function getBandwidthSettlement(uint256 index)
+        external
+        view
+        returns (uint256 cdnRailId, uint256 cdnAmount, uint256 timestamp)
+    {
+        BandwidthSettlement storage settlement = bandwidthSettlements[index];
+        return (settlement.cdnRailId, settlement.cdnAmount, settlement.timestamp);
     }
 
     function transferFilBeamController(address newController) external onlyAuthorized {

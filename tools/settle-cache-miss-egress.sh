@@ -45,14 +45,14 @@ for dataset_id in "${INPUT_IDS[@]}"; do
     # Trim whitespace
     dataset_id=$(echo "$dataset_id" | tr -d '[:space:]')
 
-    # Call dataSetUsage(uint256) -> (uint256 cdnAmount, uint256 cacheMissAmount, uint256 maxReportedEpoch)
-    USAGE_RAW=$(cast call "$FILBEAM_OPERATOR_ADDRESS" "dataSetUsage(uint256)(uint256,uint256,uint256)" "$dataset_id" --rpc-url "$RPC_URL" 2>&1) || {
+    # Call dataSetUsage(uint256) -> (uint256 cacheMissAmount, uint256 maxReportedEpoch)
+    USAGE_RAW=$(cast call "$FILBEAM_OPERATOR_ADDRESS" "dataSetUsage(uint256)(uint256,uint256)" "$dataset_id" --rpc-url "$RPC_URL" 2>&1) || {
         echo "  Dataset $dataset_id: failed to query usage, skipping."
         continue
     }
 
-    # Parse cacheMissAmount (2nd line)
-    CACHE_MISS_AMOUNT=$(echo "$USAGE_RAW" | sed -n '2p' | awk '{print $1}')
+    # Parse cacheMissAmount (1st line)
+    CACHE_MISS_AMOUNT=$(echo "$USAGE_RAW" | sed -n '1p' | awk '{print $1}')
 
     if [ ! -z "$CACHE_MISS_AMOUNT" ] && [ "$CACHE_MISS_AMOUNT" -gt 0 ] 2>/dev/null; then
         echo "  Dataset $dataset_id: unsettled cache-miss amount = $CACHE_MISS_AMOUNT"
